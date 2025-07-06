@@ -1,0 +1,14 @@
+[package]
+name = "crystallize-cli"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "crystallize-cli"
+path = "src/main.rs"
+
+[dependencies]
+crystallize-core.workspace = true
+clap.workspace = true

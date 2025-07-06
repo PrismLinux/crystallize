@@ -1,0 +1,33 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/crystallize-core",
+  "crates/crystallize-cli",
+  "crates/crystallize-gui",
+]
+
+default-members = ["crates/crystallize-gui"]
+
+[workspace.package]
+authors = ["CrystalNetwork Studio"]
+edition = "2024"
+publish = false
+
+[workspace.dependencies]
+crystallize-core = { path = "crates/crystallize-core" }
+
+clap = { version = "4.5.40", features = ["derive"] }
+bcrypt = "0.17.0"
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+log = "0.4.27"
+flexi_logger = { version = "0.31.2", features = ["colors"] }
+lazy_static = "1.5.0"
+
+[profile.release]
+strip = true
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+debug = "limited"
