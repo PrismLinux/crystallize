@@ -1,7 +1,5 @@
 use clap::Parser;
-use crystallize_core::cli::{
-  BootloaderSubcommand, Command, Opt, UsersSubcommand,
-};
+use crystallize_core::cli::{BootloaderSubcommand, Command, Opt, UsersSubcommand};
 use crystallize_core::config;
 use crystallize_core::system::*;
 use crystallize_core::utils::logging;
