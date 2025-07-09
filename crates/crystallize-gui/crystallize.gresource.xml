@@ -10,10 +10,5 @@
   </gresource>
 
   <gresource prefix="/org/crystallinux/crystallize/assets/locales">
-    <file>en.ftl</file>
-    <file>uk.ftl</file>
   </gresource>
-
-
-
 </gresources>

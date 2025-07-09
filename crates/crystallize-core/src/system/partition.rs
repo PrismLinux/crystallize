@@ -49,7 +49,7 @@ pub fn partition(device: PathBuf, mode: PartitionMode, efi: bool, partitions: &m
         crash(format!("The device {device:?} doesn't exist"), 1);
       }
       log::debug!("automatically partitioning {device:?}");
-	    partition_with_efi(&device);
+      partition_with_efi(&device);
       if device.to_string_lossy().contains("nvme") || device.to_string_lossy().contains("mmcblk") {
         part_nvme(&device, efi);
       } else {
