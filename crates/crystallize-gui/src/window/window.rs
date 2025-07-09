@@ -10,7 +10,7 @@ mod imp {
 	use super::*;
 
 	#[derive(Debug, Default, CompositeTemplate)]
-	#[template(resource = "/org/crystallinux/crystallize/window.ui")]
+	#[template(resource = "/org/crystallinux/crystallize/ui/window.ui")]
 	pub struct CrystallizeWindow {
 		#[template_child]
 		pub carousel: TemplateChild<adw::Carousel>,

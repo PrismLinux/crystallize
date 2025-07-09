@@ -10,7 +10,7 @@ mod imp {
 	use super::*;
 
 	#[derive(Debug, Default, CompositeTemplate)]
-	#[template(resource = "/org/crystallinux/crystallize/welcome_screen.ui")]
+	#[template(resource = "/org/crystallinux/crystallize/ui/welcome_screen.ui")]
 	pub struct WelcomeScreen {
 		#[template_child]
 		pub next_button: TemplateChild<gtk::Button>,
