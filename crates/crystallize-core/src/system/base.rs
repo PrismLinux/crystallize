@@ -27,6 +27,7 @@ pub fn install_base_packages(kernel: String) {
     kernel_to_install,
     format!("{kernel_to_install}-headers").as_str(),
     "linux-firmware",
+    "sof-firmware",
     "man-db",
     "man-pages",
     "nano",
@@ -36,6 +37,7 @@ pub fn install_base_packages(kernel: String) {
     "archlinux-keyring",
     "grep",
     // Base CrystalLinux
+    "about",
     // TODO
     // Fonts
     "noto-fonts",
