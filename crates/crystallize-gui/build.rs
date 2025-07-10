@@ -6,7 +6,7 @@ fn main() {
 
   // Compile GLib resources
   compile_resources(
-    &["ui", "assets", "assets/locales", "."],
+    &["ui", "assets", "."],
     "crystallize.gresource.xml",
     "crystallize.gresource",
   );

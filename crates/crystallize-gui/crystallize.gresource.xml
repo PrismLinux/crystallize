@@ -3,12 +3,18 @@
   <gresource prefix="/org/crystallinux/crystallize/ui">
     <file preprocess="xml-stripblanks">welcome_screen.ui</file>
     <file preprocess="xml-stripblanks">window.ui</file>
+    <file preprocess="xml-stripblanks">keyboard/keyboard_dialog.ui</file>
+    <file preprocess="xml-stripblanks">keyboard/keyboard_screen.ui</file>
+    <file preprocess="xml-stripblanks">keyboard/keyboard_variant.ui</file>
   </gresource>
 
-  <gresource prefix="/org/crystallinux/crystallize/assets">
-    <file alias="crystallinux-logo.svg">crystallinux-logo.svg</file>
+  <gresource prefix="/org/crystallinux/crystallize">
+    <file alias="style.css">style.css</file>
+    <file alias="crystallinux-logo.svg">assets/icons/crystallinux-logo.svg</file>
   </gresource>
+
 
   <gresource prefix="/org/crystallinux/crystallize/assets/locales">
   </gresource>
+
 </gresources>

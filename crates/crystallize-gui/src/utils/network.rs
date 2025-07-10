@@ -37,7 +37,6 @@ pub async fn check_internet_connection_async() -> bool {
         warn!("Failed to execute ping for {endpoint}: {e}");
       }
       Ok(Err(join_error)) => {
-
         error!("Ping blocking task failed to join: {join_error}");
       }
       Err(_) => {

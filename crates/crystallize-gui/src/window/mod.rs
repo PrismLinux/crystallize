@@ -4,6 +4,8 @@ use gtk::prelude::*;
 use gtk::{CompositeTemplate, gio, glib};
 use std::cell::RefCell;
 
+use crate::modules::keyboard::screen::KeyboardScreen;
+use crate::modules::keymap;
 use crate::modules::welcome::WelcomeScreen;
 
 mod imp {
@@ -117,12 +119,19 @@ impl CrystallizeWindow {
     // Start internet checking
     welcome_screen.start_internet_check();
 
+    // Create keyboard screen
+    let keyboard_screen = KeyboardScreen::new();
+    let keymaps = keymap::load();
+    keyboard_screen.setup_with_keymaps(keymaps);
+
     // Add pages to carousel
     imp.carousel.append(&welcome_screen);
+    imp.carousel.append(&keyboard_screen);
 
     // Store pages
     let mut pages = imp.pages.borrow_mut();
     pages.push(welcome_screen.upcast());
+    pages.push(keyboard_screen.upcast());
     drop(pages); // Release the mutable borrow
 
     // Set initial page state

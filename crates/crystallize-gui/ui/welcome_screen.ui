@@ -13,7 +13,7 @@
 
         <child>
           <object class="GtkImage" id="crystal_logo">
-            <property name="resource">/org/crystallinux/crystallize/assets/crystallinux-logo.svg</property>
+            <property name="resource">/org/crystallinux/crystallize/crystallinux-logo.svg</property>
             <property name="pixel-size">200</property>
             <property name="halign">center</property>
           </object>
