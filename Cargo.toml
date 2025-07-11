@@ -3,10 +3,10 @@ resolver = "2"
 members = [
   "crates/crystallize-core",
   "crates/crystallize-cli",
-  "crates/crystallize-gui",
+  # "crates/crystallize-gui",
 ]
 
-default-members = ["crates/crystallize-gui", "crates/crystallize-cli"]
+default-members = ["crates/crystallize-cli"]
 
 [workspace.package]
 authors = ["CrystalNetwork Studio"]

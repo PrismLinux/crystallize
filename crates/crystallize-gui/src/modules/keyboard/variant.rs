@@ -5,6 +5,61 @@ use gtk::prelude::CheckButtonExt;
 use gtk::{CompositeTemplate, glib};
 use std::cell::OnceCell;
 
+mod imp {
+  use super::*;
+  use adw::subclass::prelude::*;
+
+  #[derive(Debug, CompositeTemplate)]
+  #[template(resource = "/org/crystalnetwork/crystallize/ui/keyboard/keyboard_variant.ui")]
+  pub struct KeyboardVariant {
+    #[template_child]
+    pub select_variant: TemplateChild<gtk::CheckButton>,
+
+    pub layout: OnceCell<String>,
+    pub variant: OnceCell<String>,
+    pub country: OnceCell<String>,
+    pub country_shorthand: OnceCell<String>,
+  }
+
+  #[glib::object_subclass]
+  impl ObjectSubclass for KeyboardVariant {
+    const NAME: &'static str = "KeyboardVariant";
+    type Type = super::KeyboardVariant;
+    type ParentType = adw::ActionRow;
+    type Interfaces = ();
+
+    fn class_init(klass: &mut Self::Class) {
+      klass.bind_template();
+    }
+
+    fn instance_init(obj: &glib::subclass::InitializingObject<Self>) {
+      obj.init_template();
+    }
+
+    fn new() -> Self {
+      Self {
+        select_variant: TemplateChild::default(),
+        layout: OnceCell::new(),
+        variant: OnceCell::new(),
+        country: OnceCell::new(),
+        country_shorthand: OnceCell::new(),
+      }
+    }
+  }
+
+  impl ObjectImpl for KeyboardVariant {
+    fn constructed(&self) {
+      self.parent_constructed();
+    }
+  }
+
+  impl WidgetImpl for KeyboardVariant {}
+  impl ListBoxRowImpl for KeyboardVariant {}
+  impl adw::subclass::preferences_row::PreferencesRowImpl for KeyboardVariant {}
+  impl adw::subclass::action_row::ActionRowImpl for KeyboardVariant {}
+}
+
+
 glib::wrapper! {
     pub struct KeyboardVariant(ObjectSubclass<imp::KeyboardVariant>)
         @extends adw::PreferencesRow, adw::ActionRow, gtk::ListBoxRow, gtk::Widget,
@@ -67,58 +122,4 @@ impl KeyboardVariant {
       variant: self.variant(),
     }
   }
-}
-
-mod imp {
-  use super::*;
-  use adw::subclass::prelude::*;
-
-  #[derive(Debug, CompositeTemplate)]
-  #[template(resource = "/org/crystalnetwork/crystallize/ui/keyboard/keyboard_variant.ui")]
-  pub struct KeyboardVariant {
-    #[template_child]
-    pub select_variant: TemplateChild<gtk::CheckButton>,
-
-    pub layout: OnceCell<String>,
-    pub variant: OnceCell<String>,
-    pub country: OnceCell<String>,
-    pub country_shorthand: OnceCell<String>,
-  }
-
-  #[glib::object_subclass]
-  impl ObjectSubclass for KeyboardVariant {
-    const NAME: &'static str = "KeyboardVariant";
-    type Type = super::KeyboardVariant;
-    type ParentType = adw::ActionRow;
-    type Interfaces = ();
-
-    fn class_init(klass: &mut Self::Class) {
-      klass.bind_template();
-    }
-
-    fn instance_init(obj: &glib::subclass::InitializingObject<Self>) {
-      obj.init_template();
-    }
-
-    fn new() -> Self {
-      Self {
-        select_variant: TemplateChild::default(),
-        layout: OnceCell::new(),
-        variant: OnceCell::new(),
-        country: OnceCell::new(),
-        country_shorthand: OnceCell::new(),
-      }
-    }
-  }
-
-  impl ObjectImpl for KeyboardVariant {
-    fn constructed(&self) {
-      self.parent_constructed();
-    }
-  }
-
-  impl WidgetImpl for KeyboardVariant {}
-  impl ListBoxRowImpl for KeyboardVariant {}
-  impl adw::subclass::preferences_row::PreferencesRowImpl for KeyboardVariant {}
-  impl adw::subclass::action_row::ActionRowImpl for KeyboardVariant {}
 }
