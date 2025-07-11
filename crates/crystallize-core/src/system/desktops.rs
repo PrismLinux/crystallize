@@ -38,7 +38,7 @@ fn install_kde() {
 }
 
 fn install_gnome() {
-  install(vec!["gnome", "kate", "dolphin"]);
+  install(vec!["gnome", "gedit", "nautilus"]); // TODO: Add full packages for Gnome
   enable_dm("gdm");
 }
 

@@ -27,6 +27,7 @@ pub fn install_base_packages(kernel: String) {
     kernel_to_install,
     format!("{kernel_to_install}-headers").as_str(),
     "linux-firmware",
+    "sof-firmware",
     "man-db",
     "man-pages",
     "nano",
@@ -35,7 +36,8 @@ pub fn install_base_packages(kernel: String) {
     "wget",
     "archlinux-keyring",
     "grep",
-    // Base CrystalLinux
+    // Base PrismLinux
+    "about",
     // TODO
     // Fonts
     "noto-fonts",
@@ -146,7 +148,7 @@ pub fn install_bootloader_efi(efidir: PathBuf) {
       vec![
         String::from("--target=x86_64-efi"),
         format!("--efi-directory={}", efi_str),
-        String::from("--bootloader-id=crystallinux"),
+        String::from("--bootloader-id=prismlinux"),
         String::from("--removable"),
       ],
     ),
@@ -158,7 +160,7 @@ pub fn install_bootloader_efi(efidir: PathBuf) {
       vec![
         String::from("--target=x86_64-efi"),
         format!("--efi-directory={}", efi_str),
-        String::from("--bootloader-id=crystallinux"),
+        String::from("--bootloader-id=prismlinux"),
       ],
     ),
     "install grub as efi without --removable",
@@ -196,7 +198,7 @@ pub fn install_bootloader_legacy(device: PathBuf) {
 
 pub fn copy_live_config() {
   fs::copy_file("/etc/pacman.conf", "/mnt/etc/pacman.conf");
-  fs::copy_file("/etc/crystallinux-version", "/mnt/etc/crystallinux-version");
+  fs::copy_file("/etc/prismlinux-version", "/mnt/etc/prismlinux-version");
   std::fs::create_dir_all("/mnt/etc/sddm.conf.d").unwrap();
   fs::copy_file(
     "/etc/sddm.conf.d/settings.conf",
