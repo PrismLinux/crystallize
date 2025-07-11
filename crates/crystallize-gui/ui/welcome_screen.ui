@@ -13,7 +13,7 @@
 
         <child>
           <object class="GtkImage" id="crystal_logo">
-            <property name="resource">/org/crystallinux/crystallize/crystallinux-logo.svg</property>
+            <property name="resource">/org/crystalnetwork/crystallize/crystallinux-logo.svg</property>
             <property name="pixel-size">200</property>
             <property name="halign">center</property>
           </object>
@@ -21,8 +21,8 @@
 
         <child>
           <object class="AdwStatusPage">
-            <property name="title" translatable="yes">Welcome to CrystalLinux!</property>
-            <property name="description" translatable="yes">Press Start to start installing CrystalLinux!</property>
+            <property name="title" translatable="yes">Welcome to PrismLinux!</property>
+            <property name="description" translatable="yes">Press Start to start installing PrismLinux!</property>
             <property name="margin-bottom">80</property>
           </object>
         </child>

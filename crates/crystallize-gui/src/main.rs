@@ -7,7 +7,7 @@ use gtk::{gio, glib};
 
 use window::CrystallizeWindow;
 
-const APP_ID: &str = "org.crystallinux.crystallize";
+const APP_ID: &str = "org.crystalnetwork.crystallize";
 
 #[tokio::main]
 async fn main() -> glib::ExitCode {

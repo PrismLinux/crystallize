@@ -74,7 +74,7 @@ mod imp {
   use adw::subclass::prelude::*;
 
   #[derive(Debug, CompositeTemplate)]
-  #[template(resource = "/org/crystallinux/crystallize/ui/keyboard/keyboard_variant.ui")]
+  #[template(resource = "/org/crystalnetwork/crystallize/ui/keyboard/keyboard_variant.ui")]
   pub struct KeyboardVariant {
     #[template_child]
     pub select_variant: TemplateChild<gtk::CheckButton>,

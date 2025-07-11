@@ -143,7 +143,7 @@ mod imp {
   use adw::subclass::prelude::*;
 
   #[derive(Debug, CompositeTemplate)]
-  #[template(resource = "/org/crystallinux/crystallize/ui/keyboard/keyboard_screen.ui")]
+  #[template(resource = "/org/crystalnetwork/crystallize/ui/keyboard/keyboard_screen.ui")]
   pub struct KeyboardScreen {
     #[template_child]
     pub preview: TemplateChild<adw::PreferencesGroup>,
@@ -203,7 +203,7 @@ mod imp {
   impl Default for KeyboardScreen {
     fn default() -> Self {
       let builder =
-        gtk::Builder::from_resource("/org/crystallinux/crystallize/ui/keyboard/keyboard_dialog.ui");
+        gtk::Builder::from_resource("/org/crystalnetwork/crystallize/ui/keyboard/keyboard_dialog.ui");
       Self {
         preview: Default::default(),
         keyboard_search_button: Default::default(),

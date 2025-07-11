@@ -12,7 +12,7 @@ mod imp {
   use super::*;
 
   #[derive(Debug, Default, CompositeTemplate)]
-  #[template(resource = "/org/crystallinux/crystallize/ui/window.ui")]
+  #[template(resource = "/org/crystalnetwork/crystallize/ui/window.ui")]
   pub struct CrystallizeWindow {
     #[template_child]
     pub carousel: TemplateChild<adw::Carousel>,
@@ -198,11 +198,12 @@ impl CrystallizeWindow {
 
   fn show_about_dialog(&self) {
     let about = adw::AboutDialog::builder()
-      .application_name("Crystallize")
+      .application_name("Crystallize Installer")
       .developer_name("CrystalNetwork Studio")
-      .version("0.1.0")
-      .comments("CrystalLinux installer")
+      .comments("Designed for PrismLinux")
+      .issue_url("https://gitlab.com/crystalnetwork-studio/linux/prismlinux/os-build/crystallize/-/issues")
       .license_type(gtk::License::Gpl30)
+      .version("0.1.0")
       .build();
 
     about.present(Some(self));
