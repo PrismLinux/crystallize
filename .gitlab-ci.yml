@@ -1,0 +1,77 @@
+stages:
+  - build
+  - release
+
+variables:
+  GIT_STRATEGY: clone
+  GIT_DEPTH: 0
+
+build_package:
+  stage: build
+  image: registry.gitlab.com/crystalnetwork-studio/dev-tooling/docker/pkgbuild-archlinux:latest
+
+  rules:
+    - if: $CI_COMMIT_TAG
+
+  script:
+    # GitLab CI clones the repository as the 'root' user.
+    # We need to give ownership to our 'builder' user, which exists in the image.
+    - sudo chown -R builder:builder .
+
+    # Install the package dependencies listed in the PKGBUILD file.
+    - sudo -u builder yay -S --noconfirm --needed $(source PKGBUILD && echo ${depends[@]} ${makedepends[@]})
+
+    # Build the package.
+    - sudo -u builder makepkg -fc --noconfirm
+
+    # Create a version file for the release stage.
+    - |
+      source ./PKGBUILD
+      echo "VERSION=${pkgver}" > version.env
+      echo "PACKAGE_NAME=${pkgname}" >> version.env
+      echo "TAG_VERSION=${CI_COMMIT_TAG}" >> version.env
+      echo "BUILD_JOB_ID=${CI_JOB_ID}" >> version.env
+
+  artifacts:
+    paths:
+      - "*.pkg.tar.zst"
+      - "version.env"
+    expire_in: 1 week
+    reports:
+      dotenv: version.env
+
+release_job:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs:
+    - job: build_package
+      artifacts: true
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - |
+      set -e
+      source ./version.env
+
+      # Initialize an empty string to hold our arguments
+      ASSET_ARGS=""
+
+      # Loop through each package file using a standard glob
+      for PACKAGE_FILE in *.pkg.tar.zst; do
+        if [ -e "$PACKAGE_FILE" ]; then
+          echo "Preparing asset: ${PACKAGE_FILE}"
+          ASSET_ARGS="$ASSET_ARGS --assets-link '{\"name\":\"${PACKAGE_FILE}\",\"url\":\"${CI_PROJECT_URL}/-/jobs/${BUILD_JOB_ID}/artifacts/raw/${PACKAGE_FILE}\",\"link_type\":\"other\",\"filepath\":\"/${PACKAGE_FILE}\"}'"
+        fi
+      done
+
+      # Check if we actually found any assets
+      if [ -z "$ASSET_ARGS" ]; then
+        echo "No package files (*.pkg.tar.zst) found in artifacts!"
+        exit 1
+      fi
+
+      set -x
+      eval "release-cli create \
+        --name \"Release ${TAG_VERSION}\" \
+        --tag-name \"${TAG_VERSION}\" \
+        $ASSET_ARGS"
