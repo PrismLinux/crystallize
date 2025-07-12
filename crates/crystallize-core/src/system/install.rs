@@ -1,4 +1,4 @@
-use crate::system::partition::unmount;
+use crate::system::partition::umount;
 use crate::utils::eval::exec_eval;
 use std::process::Command;
 
@@ -7,5 +7,5 @@ pub fn install(pkgs: Vec<&str>) {
     Command::new("pacstrap").arg("/mnt").args(&pkgs).status(),
     format!("Install packages {}", pkgs.join(", ")).as_str(),
   );
-  unmount("/mnt/dev");
+  umount("/mnt/dev");
 }
