@@ -9,7 +9,7 @@ use std::path::PathBuf;
 pub fn install_base_packages(kernel: String) {
   std::fs::create_dir_all("/mnt/etc").unwrap();
   let kernel_to_install = if kernel.is_empty() {
-    "linux"
+    "linux-zen"
   } else {
     match kernel.as_str() {
       "linux-zen" => "linux-zen",
@@ -38,7 +38,6 @@ pub fn install_base_packages(kernel: String) {
     "grep",
     // Base PrismLinux
     "about",
-    // TODO
     // Fonts
     "noto-fonts",
     "noto-fonts-cjk",
@@ -59,12 +58,13 @@ pub fn install_base_packages(kernel: String) {
     "ttf-liberation",
     "dnsmasq",
     "xdg-user-dirs",
+    "firewalld",
     "librewolf",
     "bash",
     "bash-completion",
     "inxi",
     "acpi",
-    "htop",
+    "btop",
     "fwupd",
     "ntp",
     "kf6",
@@ -86,8 +86,8 @@ pub fn install_base_packages(kernel: String) {
     // Chaotic-AUR
     "chaotic-keyring",
     "chaotic-mirrorlist",
-    // Display manager
-    "sddm",
+    // ArchLinux CN
+    "archlinuxcn-keyring",
   ]);
   fs::copy_file("/etc/pacman.conf", "/mnt/etc/pacman.conf");
 
@@ -97,6 +97,13 @@ pub fn install_base_packages(kernel: String) {
       vec![String::from("enable"), String::from("bluetooth")],
     ),
     "Enable bluetooth",
+  );
+    exec_eval(
+    exec_chroot(
+      "systemctl",
+      vec![String::from("enable"), String::from("firewalld")],
+    ),
+    "Enable firewalld",
   );
 
   exec_eval(
@@ -199,12 +206,12 @@ pub fn install_bootloader_legacy(device: PathBuf) {
 pub fn copy_live_config() {
   fs::copy_file("/etc/pacman.conf", "/mnt/etc/pacman.conf");
   fs::copy_file("/etc/prismlinux-version", "/mnt/etc/prismlinux-version");
-  std::fs::create_dir_all("/mnt/etc/sddm.conf.d").unwrap();
-  fs::copy_file(
-    "/etc/sddm.conf.d/settings.conf",
-    "/mnt/etc/sddm.conf.d/settings.conf",
-  );
-  fs::copy_file("/etc/sddm.conf", "/mnt/etc/sddm.conf");
+  // std::fs::create_dir_all("/mnt/etc/sddm.conf.d").unwrap();
+  // fs::copy_file(
+  //   "/etc/sddm.conf.d/settings.conf",
+  //   "/mnt/etc/sddm.conf.d/settings.conf",
+  // );
+  // fs::copy_file("/etc/sddm.conf", "/mnt/etc/sddm.conf");
   // fs::copy_file("/etc/mkinitcpio.conf", "/mnt/etc/mkinitcpio.conf");
 }
 

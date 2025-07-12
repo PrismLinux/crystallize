@@ -26,19 +26,21 @@ fn install_networkmanager() {
 
 fn install_kde() {
   install(vec![
-    "plasma-meta",
+    "sddm",
+    "plasma-desktop",
     "konsole",
     "kate",
     "dolphin",
     "ark",
     "plasma-workspace",
     "papirus-icon-theme",
+    "plasma-firewall"
   ]);
   enable_dm("sddm");
 }
 
 fn install_gnome() {
-  install(vec!["gnome", "gedit", "nautilus"]); // TODO: Add full packages for Gnome
+  install(vec!["gdm", "gnome", "gedit", "nautilus"]);
   enable_dm("gdm");
 }
 
