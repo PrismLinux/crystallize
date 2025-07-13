@@ -15,9 +15,9 @@ struct Config {
   users: Vec<Users>,
   rootpass: String,
   desktop: String,
-  timeshift: bool,
   flatpak: bool,
-  zramd: bool,
+  swap: u64,
+  nvidia: bool,
   extra_packages: Vec<String>,
   kernel: String,
 }
@@ -99,6 +99,7 @@ pub fn read_config(configpath: PathBuf) {
     &mut partitions,
   );
   base::install_base_packages(config.kernel);
+  base::setup_archlinux_keyring();
   base::genfstab();
   println!();
   log::info!("Installing bootloader : {}", config.bootloader.r#type);
@@ -123,11 +124,15 @@ pub fn read_config(configpath: PathBuf) {
   if config.networking.ipv6 {
     network::enable_ipv6();
   }
+  log::info!("Enabling nvidia : {}", config.nvidia);
+  if config.nvidia {
+    base::install_nvidia();
+  }
   println!();
   println!("---------");
-  log::info!("Enabling zramd : {}", config.zramd);
-  if config.zramd {
-    base::install_zram();
+  log::info!("Enabling swap: {}M ", config.swap);
+  if config.swap > 0 {
+    base::enable_swap(config.swap);
   }
   println!();
   println!("---------");
@@ -150,9 +155,6 @@ pub fn read_config(configpath: PathBuf) {
   users::root_pass(config.rootpass.as_str());
   println!();
   log::info!("Installing desktop : {:?}", config.desktop);
-  /*if let Some(desktop) = &config.desktop {
-      desktops::install_desktop_setup(*desktop);
-  }*/
   match config.desktop.to_lowercase().as_str() {
     "kde" => desktops::install_desktop_setup(DesktopSetup::Kde),
     "plasma" => desktops::install_desktop_setup(DesktopSetup::Kde),
@@ -160,11 +162,6 @@ pub fn read_config(configpath: PathBuf) {
     "cinnamon" => desktops::install_desktop_setup(DesktopSetup::Cinnamon),
     "none/diy" => desktops::install_desktop_setup(DesktopSetup::None),
     _ => log::info!("No desktop setup selected!"),
-  }
-  println!();
-  log::info!("Enabling timeshift : {}", config.timeshift);
-  if config.timeshift {
-    base::setup_timeshift();
   }
   println!();
   log::info!("Enabling flatpak : {}", config.flatpak);

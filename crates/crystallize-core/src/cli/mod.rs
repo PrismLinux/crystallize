@@ -22,13 +22,13 @@ pub enum Command {
   #[clap(name = "install-base")]
   InstallBase(InstallBaseArgs),
 
+  /// Setup Arch Linux keyring
+  #[clap(name = "setup-keyring")]
+  SetupKeyring,
+
   /// Generate fstab file for mounting partitions
   #[clap(name = "genfstab")]
   GenFstab,
-
-  /// Setup Timeshift
-  #[clap(name = "setup-timeshift")]
-  SetupTimeshift,
 
   /// Install the bootloader
   #[clap(name = "bootloader")]
@@ -45,9 +45,16 @@ pub enum Command {
   #[clap(name = "networking")]
   Networking(NetworkingArgs),
 
-  /// Set up zramd
-  #[clap(name = "zramd")]
-  Zram,
+  /// Set up swap
+  #[clap(name = "swap")]
+  Swap {
+    #[clap(value_parser)]
+    size: u64,
+  },
+
+  /// Install and setup Nvidia drivers
+  #[clap(name = "nvidia")]
+  Nvidia,
 
   /// Configure users and passwords
   #[clap(name = "users")]
@@ -95,9 +102,6 @@ pub struct PartitionArgs {
   #[clap(long)]
   pub efi: bool,
 
-  #[clap(long)]
-  pub unakite: bool,
-
   /// The partitions to use for manual partitioning
   #[arg(required_if_eq("mode", "manual"), value_parser = parse_partition)]
   pub partitions: Vec<Partition>,
@@ -107,25 +111,6 @@ pub struct PartitionArgs {
 pub struct InstallBaseArgs {
   #[clap(long)]
   pub kernel: String,
-}
-
-#[derive(Debug, Args)]
-pub struct UnakiteArgs {
-  /// Root device of Unakite
-  #[clap(long)]
-  pub root: String,
-  /// Root device of Crystal
-  #[clap(long)]
-  pub oldroot: String,
-  /// Whether the system is an EFI system
-  #[clap(long)]
-  pub efi: bool,
-  /// Boot directory (if not EFI), or EFI directory
-  #[clap(long)]
-  pub efidir: String,
-  /// Blockdev of boot device
-  #[clap(long)]
-  pub bootdev: String,
 }
 
 #[derive(Debug, Clone)]

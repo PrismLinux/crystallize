@@ -18,10 +18,12 @@ fn main() {
     Command::InstallBase(args) => {
       base::install_base_packages(args.kernel);
     }
+    Command::SetupKeyring => {
+      base::setup_archlinux_keyring();
+    }
     Command::GenFstab => {
       base::genfstab();
     }
-    Command::SetupTimeshift => base::setup_timeshift(),
     Command::Bootloader { subcommand } => match subcommand {
       BootloaderSubcommand::GrubEfi { efidir } => {
         base::install_bootloader_efi(efidir);
@@ -44,8 +46,11 @@ fn main() {
       }
       network::set_hostname(&args.hostname);
     }
-    Command::Zram => {
-      base::install_zram();
+    Command::Swap { size } => {
+      base::enable_swap(size);
+    }
+    Command::Nvidia => {
+      base::install_nvidia();
     }
     Command::Users { subcommand } => match subcommand {
       UsersSubcommand::NewUser(args) => {

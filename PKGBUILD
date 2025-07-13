@@ -1,6 +1,6 @@
 # Maintainer: CrystalNetwork Studio
 pkgname=crystallize-cli
-pkgver=0.1.2
+pkgver=0.2.1
 pkgrel=1
 pkgdesc="CLI version of Crystallize Installer"
 arch=('x86_64')
