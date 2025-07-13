@@ -34,7 +34,7 @@ fn install_kde() {
     "ark",
     "plasma-workspace",
     "papirus-icon-theme",
-    "plasma-firewall"
+    "plasma-firewall",
   ]);
   enable_dm("sddm");
 }

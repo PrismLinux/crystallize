@@ -49,12 +49,11 @@ pub fn install_base_packages(kernel: String) {
     "pipewire-alsa",
     // "pipewire-jack",
     "wireplumber",
-    "power-profiles-daemon",
+    "tuned-ppd",
     "cups",
     "cups-pdf",
     "bluez",
     "bluez-cups",
-    "zsh-completions",
     "ttf-liberation",
     "dnsmasq",
     "xdg-user-dirs",
@@ -67,8 +66,6 @@ pub fn install_base_packages(kernel: String) {
     "btop",
     "fwupd",
     "ntp",
-    "kf6",
-    "gnome-packagekit",
     "packagekit",
     "unzip",
     // Graphic drivers
@@ -106,6 +103,13 @@ pub fn install_base_packages(kernel: String) {
     "Enable firewalld",
   );
 
+  exec_eval(
+    exec_chroot(
+      "systemctl",
+      vec![String::from("enable"), String::from("tuned-ppd")],
+    ),
+    "Enable tuned-ppd power manager",
+  );
   exec_eval(
     exec_chroot(
       "systemctl",
