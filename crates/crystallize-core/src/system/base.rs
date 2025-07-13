@@ -34,10 +34,10 @@ pub fn install_base_packages(kernel: String) {
     "sudo",
     "curl",
     "wget",
-    "archlinux-keyring",
     "grep",
     // Base PrismLinux
     "about",
+    "prismlinux-themes-fish",
     // Fonts
     "noto-fonts",
     "noto-fonts-cjk",
@@ -68,7 +68,6 @@ pub fn install_base_packages(kernel: String) {
     "fwupd",
     "ntp",
     "kf6",
-    "packagekit-qt6",
     "gnome-packagekit",
     "packagekit",
     "unzip",
@@ -84,6 +83,7 @@ pub fn install_base_packages(kernel: String) {
     "vulkan-icd-loader",
     // "virtualbox-guest-utils",
     // Chaotic-AUR
+    "archlinux-keyring",
     "chaotic-keyring",
     "chaotic-mirrorlist",
     // ArchLinux CN
@@ -98,7 +98,7 @@ pub fn install_base_packages(kernel: String) {
     ),
     "Enable bluetooth",
   );
-    exec_eval(
+  exec_eval(
     exec_chroot(
       "systemctl",
       vec![String::from("enable"), String::from("firewalld")],
