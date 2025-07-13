@@ -1,6 +1,7 @@
-use crate::system::command::exec_chroot;
-use crate::system::fs;
-use crate::utils::eval::{exec_eval, files_eval};
+use crate::{
+  system::{exec::exec_chroot, files},
+  utils::{exec_eval, files_eval},
+};
 
 pub fn set_timezone(timezone: &str) {
   exec_eval(
@@ -22,17 +23,17 @@ pub fn set_timezone(timezone: &str) {
 
 pub fn set_locale(locale: String) {
   files_eval(
-    fs::append_file("/mnt/etc/locale.gen", "en_US.UTF-8 UTF-8"),
+    files::append_file("/mnt/etc/locale.gen", "en_US.UTF-8 UTF-8"),
     "add en_US.UTF-8 UTF-8 to locale.gen",
   );
-  fs::create_file("/mnt/etc/locale.conf");
+  files::create_file("/mnt/etc/locale.conf");
   files_eval(
-    fs::append_file("/mnt/etc/locale.conf", "LANG=en_US.UTF-8"),
+    files::append_file("/mnt/etc/locale.conf", "LANG=en_US.UTF-8"),
     "edit locale.conf",
   );
   for i in (0..locale.split(' ').count()).step_by(2) {
     files_eval(
-      fs::append_file(
+      files::append_file(
         "/mnt/etc/locale.gen",
         &format!(
           "{} {}\n",
@@ -44,7 +45,7 @@ pub fn set_locale(locale: String) {
     );
     if locale.split(' ').collect::<Vec<&str>>()[i] != "en_US.UTF-8" {
       files_eval(
-        fs::sed_file(
+        files::sed_file(
           "/mnt/etc/locale.conf",
           "en_US.UTF-8",
           locale.split(' ').collect::<Vec<&str>>()[i],
@@ -61,26 +62,12 @@ pub fn set_locale(locale: String) {
 }
 
 pub fn set_keyboard(keyboard: &str) {
-  fs::create_file("/mnt/etc/vconsole.conf");
+  files::create_file("/mnt/etc/vconsole.conf");
   files_eval(
-    fs::append_file(
+    files::append_file(
       "/mnt/etc/vconsole.conf",
       format!("KEYMAP={keyboard}").as_str(),
     ),
-    "set keyboard layout in vconsole",
-  );
-  exec_eval(
-    exec_chroot(
-      "localectl",
-      vec!["set-x11-keymap".to_string(), keyboard.to_string()],
-    ),
-    "Set x11 keymap",
-  );
-  exec_eval(
-    exec_chroot(
-      "localectl",
-      vec!["set-keymap".to_string(), keyboard.to_string()],
-    ),
-    "Set global keymap",
+    "set keyboard layout",
   );
 }

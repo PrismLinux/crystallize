@@ -1,12 +1,18 @@
-use crate::system::command::exec_chroot;
-use crate::system::{fs, install};
-use crate::utils::eval::{exec_eval, files_eval};
+use std::process::Command;
+
+use crate::{
+  system::{exec::exec_chroot, files, install},
+  utils::{exec_eval, files_eval},
+};
 
 pub fn new_user(username: &str, hasroot: bool, password: &str, do_hash_pass: bool, shell: &str) {
   let shell: &str = shell;
   if do_hash_pass {
-    let hashed_pass = &*hash_pass(password).expect("Failed to hash password");
-    let _password = &hashed_pass;
+    let hashed_pass = &*hash_pass(password).stdout;
+    let _password = match std::str::from_utf8(hashed_pass) {
+      Ok(v) => v,
+      Err(e) => panic!("Failed to hash password, invalid UTF-8 sequence {e}"),
+    };
   }
   let shell_to_install = match shell {
     "bash" => "bash",
@@ -52,7 +58,7 @@ pub fn new_user(username: &str, hasroot: bool, password: &str, do_hash_pass: boo
       format!("Add user {username} to wheel group").as_str(),
     );
     files_eval(
-      fs::sed_file(
+      files::sed_file(
         "/mnt/etc/sudoers",
         "# %wheel ALL=(ALL:ALL) ALL",
         "%wheel ALL=(ALL:ALL) ALL",
@@ -60,16 +66,16 @@ pub fn new_user(username: &str, hasroot: bool, password: &str, do_hash_pass: boo
       "Add wheel group to sudoers",
     );
     files_eval(
-      fs::append_file("/mnt/etc/sudoers", "\nDefaults pwfeedback\n"),
+      files::append_file("/mnt/etc/sudoers", "\nDefaults pwfeedback\n"),
       "Add pwfeedback to sudoers",
     );
     files_eval(
-      fs::create_directory("/mnt/var/lib/AccountsService/users/"),
+      files::create_directory("/mnt/var/lib/AccountsService/users/"),
       "Create /mnt/var/lib/AcountsService",
     );
-    fs::create_file(&format!("/mnt/var/lib/AccountsService/users/{username}"));
+    files::create_file(&format!("/mnt/var/lib/AccountsService/users/{username}"));
     files_eval(
-      fs::append_file(
+      files::append_file(
         &format!("/mnt/var/lib/AccountsService/users/{username}"),
         r#"[User]
                 Session=plasma"#,
@@ -79,21 +85,20 @@ pub fn new_user(username: &str, hasroot: bool, password: &str, do_hash_pass: boo
   }
 }
 
-pub fn hash_pass(password: &str) -> Result<String, bcrypt::BcryptError> {
-  let cost = 12;
-  bcrypt::hash(password, cost)
+pub fn hash_pass(password: &str) -> std::process::Output {
+  Command::new("openssl")
+    .args(["passwd", "-1", password])
+    .output()
+    .expect("Failed to hash password")
 }
 
 pub fn root_pass(root_pass: &str) {
-  let hashed_pass =
-    hash_pass(root_pass).expect("Failed to hash root password for 'usermod' command");
   exec_eval(
     exec_chroot(
-      "usermod",
+      "bash",
       vec![
-        String::from("--password"),
-        hashed_pass,
-        String::from("root"),
+        String::from("-c"),
+        format!(r#"'usermod --password {root_pass} root'"#),
       ],
     ),
     "set root password",

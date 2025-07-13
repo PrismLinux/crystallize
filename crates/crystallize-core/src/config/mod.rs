@@ -1,8 +1,8 @@
-use crate::cli::Partition as PartitionCli;
+use crate::cli;
 use crate::cli::{DesktopSetup, PartitionMode};
 use crate::system::install::install;
 use crate::system::{base, desktops, locale, network, partition, users};
-use crate::utils::error::crash;
+use crate::utils::crash;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -15,8 +15,9 @@ struct Config {
   users: Vec<Users>,
   rootpass: String,
   desktop: String,
-  swap: u64,
-  nvidia: bool,
+  timeshift: bool,
+  flatpak: bool,
+  zramd: bool,
   extra_packages: Vec<String>,
   kernel: String,
 }
@@ -69,7 +70,7 @@ pub fn read_config(configpath: PathBuf) {
       );
     }
   }
-  let config: Result<Config, serde_json::Error> = serde_json::from_str(&data.unwrap());
+  let config: std::result::Result<Config, serde_json::Error> = serde_json::from_str(&data.unwrap());
   match &config {
     Ok(_) => {
       log::debug!("[ \x1b[2;1;32mOK\x1b[0m ] Parse config file {configpath:?}",);
@@ -82,9 +83,9 @@ pub fn read_config(configpath: PathBuf) {
   log::info!("Block device to use : /dev/{}", config.partition.device);
   log::info!("Partitioning mode : {:?}", config.partition.mode);
   log::info!("Partitioning for EFI : {}", config.partition.efi);
-  let mut partitions: Vec<PartitionCli> = Vec::new();
+  let mut partitions: Vec<cli::Partition> = Vec::new();
   for partition in config.partition.partitions {
-    partitions.push(PartitionCli::new(
+    partitions.push(cli::Partition::new(
       partition.split(':').collect::<Vec<&str>>()[0].to_string(),
       partition.split(':').collect::<Vec<&str>>()[1].to_string(),
       partition.split(':').collect::<Vec<&str>>()[2].to_string(),
@@ -98,12 +99,15 @@ pub fn read_config(configpath: PathBuf) {
     &mut partitions,
   );
   base::install_base_packages(config.kernel);
-  base::setup_archlinux_keyring();
   base::genfstab();
   println!();
   log::info!("Installing bootloader : {}", config.bootloader.r#type);
   log::info!("Installing bootloader to : {}", config.bootloader.location);
-  base::install_bootloader_efi(PathBuf::from(config.bootloader.location));
+  if config.bootloader.r#type == "grub-efi" {
+    base::install_bootloader_efi(PathBuf::from(config.bootloader.location));
+  } else if config.bootloader.r#type == "grub-legacy" {
+    base::install_bootloader_legacy(PathBuf::from(config.bootloader.location));
+  }
   println!();
   log::info!("Adding Locales : {:?}", config.locale.locale);
   log::info!("Using keymap : {}", config.locale.keymap);
@@ -121,15 +125,9 @@ pub fn read_config(configpath: PathBuf) {
   }
   println!();
   println!("---------");
-  log::info!("Installing desktop : {:?}", config.desktop);
-  /*if let Some(desktop) = &config.desktop {
-      desktops::install_desktop_setup(*desktop);
-  }*/
-  match config.desktop.to_lowercase().as_str() {
-    "kde" | "plasma" => desktops::install_desktop_setup(DesktopSetup::Kde),
-    "gnome" => desktops::install_desktop_setup(DesktopSetup::Gnome),
-    "none/diy" => desktops::install_desktop_setup(DesktopSetup::None),
-    _ => log::info!("No desktop setup selected!"),
+  log::info!("Enabling zramd : {}", config.zramd);
+  if config.zramd {
+    base::install_zram();
   }
   println!();
   println!("---------");
@@ -150,18 +148,28 @@ pub fn read_config(configpath: PathBuf) {
   println!();
   log::info!("Setting root password : {}", config.rootpass);
   users::root_pass(config.rootpass.as_str());
-
   println!();
-  log::info!("Copying live config");
-  base::copy_live_config();
-  println!();
-  log::info!("Enabling nvidia : {}", config.nvidia);
-  if config.nvidia {
-    base::install_nvidia();
+  log::info!("Installing desktop : {:?}", config.desktop);
+  /*if let Some(desktop) = &config.desktop {
+      desktops::install_desktop_setup(*desktop);
+  }*/
+  match config.desktop.to_lowercase().as_str() {
+    "kde" => desktops::install_desktop_setup(DesktopSetup::Kde),
+    "plasma" => desktops::install_desktop_setup(DesktopSetup::Kde),
+    "gnome" => desktops::install_desktop_setup(DesktopSetup::Gnome),
+    "cinnamon" => desktops::install_desktop_setup(DesktopSetup::Cinnamon),
+    "none/diy" => desktops::install_desktop_setup(DesktopSetup::None),
+    _ => log::info!("No desktop setup selected!"),
   }
-  log::info!("Enabling swap: {}M ", config.swap);
-  if config.swap > 0 {
-    base::enable_swap(config.swap);
+  println!();
+  log::info!("Enabling timeshift : {}", config.timeshift);
+  if config.timeshift {
+    base::setup_timeshift();
+  }
+  println!();
+  log::info!("Enabling flatpak : {}", config.flatpak);
+  if config.flatpak {
+    base::install_flatpak();
   }
   log::info!("Extra packages : {:?}", config.extra_packages);
   let mut extra_packages: Vec<&str> = Vec::new();
@@ -169,6 +177,6 @@ pub fn read_config(configpath: PathBuf) {
     extra_packages.push(config.extra_packages[i].as_str());
   }
   install(extra_packages);
-  println!();
+
   println!("Installation finished! You may reboot now!")
 }

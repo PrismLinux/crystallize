@@ -1,9 +1,10 @@
+use chrono::Timelike;
 use flexi_logger::{DeferredNow, LogSpecification, Logger, style};
-use log::{LevelFilter, Record};
+use log::LevelFilter;
 use std::io::Write;
 
-pub fn init(verbose: usize) {
-  let log_specification = match verbose {
+pub fn init(verbosity: usize) {
+  let log_specification = match verbosity {
     0 => LogSpecification::builder()
       .default(LevelFilter::Info)
       .build(),
@@ -15,20 +16,27 @@ pub fn init(verbose: usize) {
       .build(),
   };
   Logger::with(log_specification)
-    .format(format_log_message)
+    .format(format_log_entry)
     .start()
     .unwrap();
 }
 
-pub fn format_log_message(
+/// Formats a log entry with color
+fn format_log_entry(
   w: &mut dyn Write,
   now: &mut DeferredNow,
-  record: &Record,
+  record: &log::Record,
 ) -> std::io::Result<()> {
-  let message = record.args().to_string();
   let level = record.level();
-  let timestamp = now.now().format("%H:%M:%S").to_string();
-  let styled_level = style(level).paint(level.to_string());
-
-  writeln!(w, "[ {styled_level} ] {timestamp} {message}")
+  let time = now.now();
+  let (h, m, s) = (time.hour(), time.minute(), time.second());
+  write!(
+    w,
+    "[ {} ] {:02}:{:02}:{:02} {}",
+    style(level).paint(level.to_string()),
+    h,
+    m,
+    s,
+    record.args()
+  )
 }

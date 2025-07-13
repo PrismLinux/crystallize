@@ -1,14 +1,13 @@
-use crate::utils::error::crash;
-use std::{
-  fs::{self, File, OpenOptions},
-  io::Write,
-};
+use std::fs::{self, File, OpenOptions};
+use std::io::prelude::*;
+
+use crate::utils::crash;
 
 pub fn create_file(path: &str) {
-  let return_code = File::create(path);
-  match return_code {
+  let returncode = File::create(path);
+  match returncode {
     Ok(_) => {
-      log::info!("Create {path}")
+      log::info!("Create {path}");
     }
     Err(e) => {
       crash(format!("Create {path}: Failed with error {e}"), 1);
@@ -17,10 +16,10 @@ pub fn create_file(path: &str) {
 }
 
 pub fn copy_file(path: &str, destpath: &str) {
-  let return_code = fs::copy(path, destpath);
+  let return_code = std::fs::copy(path, destpath);
   match return_code {
     Ok(_) => {
-      log::info!("Copy {path} to {destpath}")
+      log::info!("Copy {path} to {destpath}");
     }
     Err(e) => {
       crash(
@@ -48,5 +47,5 @@ pub fn sed_file(path: &str, find: &str, replace: &str) -> std::io::Result<()> {
 }
 
 pub fn create_directory(path: &str) -> std::io::Result<()> {
-  fs::create_dir_all(path)
+  std::fs::create_dir_all(path)
 }

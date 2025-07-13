@@ -1,25 +1,74 @@
-use crate::cli::{Partition, PartitionMode};
-use crate::system::command::exec;
-use crate::system::fs;
-use crate::utils::error::crash;
-use crate::utils::eval::{exec_eval, files_eval};
+use crate::cli::PartitionMode;
+use crate::system::exec::{exec, exec_workdir};
+use crate::system::files;
+use crate::utils::{exec_eval, files_eval};
+use crate::{cli, utils::crash};
 use std::path::{Path, PathBuf};
 
+/*mkfs.bfs mkfs.cramfs mkfs.ext3  mkfs.fat mkfs.msdos  mkfs.xfs
+mkfs.btrfs mkfs.ext2  mkfs.ext4  mkfs.minix mkfs.vfat mkfs.f2fs */
+
 pub fn fmt_mount(mountpoint: &str, filesystem: &str, blockdevice: &str) {
-  let fs_command = match filesystem {
-    "ext4" => ("mkfs.ext4", vec![String::from(blockdevice)]),
-    "fat32" => (
-      "mkfs.fat",
-      vec![String::from("-F32"), String::from(blockdevice)],
+  match filesystem {
+    "vfat" => exec_eval(
+      exec(
+        "mkfs.vfat",
+        vec![String::from("-F32"), String::from(blockdevice)],
+      ),
+      format!("Formatting {blockdevice} as vfat").as_str(),
     ),
-    "btrfs" => (
-      "mkfs.btrfs",
-      vec![String::from("-f"), String::from(blockdevice)],
+    "bfs" => exec_eval(
+      exec("mkfs.bfs", vec![String::from(blockdevice)]),
+      format!("Formatting {blockdevice} as bfs").as_str(),
     ),
-    "xfs" => ("mkfs.xfs", vec![String::from(blockdevice)]),
-    "noformat" | "don't format" => {
+    "cramfs" => exec_eval(
+      exec("mkfs.cramfs", vec![String::from(blockdevice)]),
+      format!("Formatting {blockdevice} as cramfs").as_str(),
+    ),
+    "ext3" => exec_eval(
+      exec("mkfs.ext3", vec![String::from(blockdevice)]),
+      format!("Formatting {blockdevice} as ext3").as_str(),
+    ),
+    "fat" => exec_eval(
+      exec("mkfs.fat", vec![String::from(blockdevice)]),
+      format!("Formatting {blockdevice} as fat").as_str(),
+    ),
+    "msdos" => exec_eval(
+      exec("mkfs.msdos", vec![String::from(blockdevice)]),
+      format!("Formatting {blockdevice} as msdos").as_str(),
+    ),
+    "xfs" => exec_eval(
+      exec("mkfs.xfs", vec![String::from(blockdevice)]),
+      format!("Formatting {blockdevice} as xfs").as_str(),
+    ),
+    "btrfs" => exec_eval(
+      exec(
+        "mkfs.btrfs",
+        vec![String::from("-f"), String::from(blockdevice)],
+      ),
+      format!("Formatting {blockdevice} as btrfs").as_str(),
+    ),
+    "ext2" => exec_eval(
+      exec("mkfs.ext2", vec![String::from(blockdevice)]),
+      format!("Formatting {blockdevice} as ext2").as_str(),
+    ),
+    "ext4" => exec_eval(
+      exec("mkfs.ext4", vec![String::from(blockdevice)]),
+      format!("Formatting {blockdevice} as ext4").as_str(),
+    ),
+    "minix" => exec_eval(
+      exec("mkfs.minix", vec![String::from(blockdevice)]),
+      format!("Formatting {blockdevice} as minix").as_str(),
+    ),
+    "f2fs" => exec_eval(
+      exec("mkfs.f2fs", vec![String::from(blockdevice)]),
+      format!("Formatting {blockdevice} as f2fs").as_str(),
+    ),
+    "don't format" => {
       log::debug!("Not formatting {blockdevice}");
-      return;
+    }
+    "noformat" => {
+      log::debug!("Not formatting {blockdevice}");
     }
     _ => {
       crash(
@@ -27,13 +76,7 @@ pub fn fmt_mount(mountpoint: &str, filesystem: &str, blockdevice: &str) {
         1,
       );
     }
-  };
-
-  exec_eval(
-    exec(fs_command.0, fs_command.1),
-    format!("Formatting {blockdevice} as {filesystem}").as_str(),
-  );
-
+  }
   exec_eval(
     exec("mkdir", vec![String::from("-p"), String::from(mountpoint)]),
     format!("Creating mountpoint {mountpoint} for {blockdevice}").as_str(),
@@ -41,7 +84,12 @@ pub fn fmt_mount(mountpoint: &str, filesystem: &str, blockdevice: &str) {
   mount(blockdevice, mountpoint, "");
 }
 
-pub fn partition(device: PathBuf, mode: PartitionMode, efi: bool, partitions: &mut Vec<Partition>) {
+pub fn partition(
+  device: PathBuf,
+  mode: PartitionMode,
+  efi: bool,
+  partitions: &mut Vec<cli::Partition>,
+) {
   println!("{mode:?}");
   match mode {
     PartitionMode::Auto => {
@@ -49,7 +97,11 @@ pub fn partition(device: PathBuf, mode: PartitionMode, efi: bool, partitions: &m
         crash(format!("The device {device:?} doesn't exist"), 1);
       }
       log::debug!("automatically partitioning {device:?}");
-      partition_with_efi(&device);
+      if efi {
+        partition_with_efi(&device);
+      } else {
+        partition_no_efi(&device);
+      }
       if device.to_string_lossy().contains("nvme") || device.to_string_lossy().contains("mmcblk") {
         part_nvme(&device, efi);
       } else {
@@ -59,32 +111,68 @@ pub fn partition(device: PathBuf, mode: PartitionMode, efi: bool, partitions: &m
     PartitionMode::Manual => {
       log::debug!("Manual partitioning");
       partitions.sort_by(|a, b| a.mountpoint.len().cmp(&b.mountpoint.len()));
-      for partition in partitions {
+      for i in 0..partitions.len() {
+        println!("{partitions:?}");
+        println!("{}", partitions.len());
+        println!("{}", &partitions[i].mountpoint);
+        println!("{}", &partitions[i].filesystem);
+        println!("{}", &partitions[i].blockdevice);
         fmt_mount(
-          &partition.mountpoint,
-          &partition.filesystem,
-          &partition.blockdevice,
+          &partitions[i].mountpoint,
+          &partitions[i].filesystem,
+          &partitions[i].blockdevice,
         );
-        if &partition.mountpoint == "/boot/efi" {
-          exec_eval(
-            exec(
-              "parted",
-              vec![
-                String::from("-s"),
-                String::from(&partition.blockdevice),
-                String::from("set"),
-                String::from("1"),
-                String::from("esp"),
-                String::from("on"),
-              ],
-            ),
-            "set EFI partition as ESP",
-          );
-        }
       }
     }
   }
 }
+
+fn partition_no_efi(device: &Path) {
+  let device = device.to_string_lossy().to_string();
+  exec_eval(
+    exec(
+      "parted",
+      vec![
+        String::from("-s"),
+        String::from(&device),
+        String::from("mklabel"),
+        String::from("msdos"),
+      ],
+    ),
+    format!("Create msdos label on {device}").as_str(),
+  );
+  exec_eval(
+    exec(
+      "parted",
+      vec![
+        String::from("-s"),
+        String::from(&device),
+        String::from("mkpart"),
+        String::from("primary"),
+        String::from("ext4"),
+        String::from("1MIB"),
+        String::from("512MIB"),
+      ],
+    ),
+    "create bios boot partition",
+  );
+  exec_eval(
+    exec(
+      "parted",
+      vec![
+        String::from("-s"),
+        device,
+        String::from("mkpart"),
+        String::from("primary"),
+        String::from("btrfs"),
+        String::from("512MIB"),
+        String::from("100%"),
+      ],
+    ),
+    "create btrfs root partition",
+  );
+}
+
 fn partition_with_efi(device: &Path) {
   let device = device.to_string_lossy().to_string();
   exec_eval(
@@ -118,29 +206,15 @@ fn partition_with_efi(device: &Path) {
       "parted",
       vec![
         String::from("-s"),
-        String::from(&device),
-        String::from("set"),
-        String::from("1"),
-        String::from("esp"),
-        String::from("on"),
-      ],
-    ),
-    "set EFI partition as ESP",
-  );
-  exec_eval(
-    exec(
-      "parted",
-      vec![
-        String::from("-s"),
         device,
         String::from("mkpart"),
         String::from("primary"),
-        String::from("ext4"),
+        String::from("btrfs"),
         String::from("512MIB"),
         String::from("100%"),
       ],
     ),
-    "create ext4 root partition",
+    "create btrfs root partition",
   );
 }
 
@@ -149,50 +223,96 @@ fn part_nvme(device: &Path, efi: bool) {
   if efi {
     exec_eval(
       exec(
-        "mkfs.fat",
+        "mkfs.vfat",
         vec![String::from("-F32"), format!("{}p1", device)],
       ),
       format!("format {device}p1 as fat32").as_str(),
     );
     exec_eval(
-      exec("mkfs.ext4", vec![format!("{}p2", device)]),
-      format!("format {device}p2 as ext4").as_str(),
+      exec(
+        "mkfs.btrfs",
+        vec!["-f".to_string(), format!("{}p2", device)],
+      ),
+      format!("format {device}p2 as btrfs").as_str(),
     );
     mount(format!("{device}p2").as_str(), "/mnt", "");
-    files_eval(fs::create_directory("/mnt/boot"), "create /mnt/boot");
-    files_eval(
-      fs::create_directory("/mnt/boot/efi"),
-      "create /mnt/boot/efi",
-    );
-    mount(format!("{device}p1").as_str(), "/mnt/boot/efi", "");
     exec_eval(
-      exec(
-        "parted",
+      exec_workdir(
+        "btrfs",
+        "/mnt",
         vec![
-          String::from("-s"),
-          String::from(&device),
-          String::from("set"),
-          String::from("1"),
-          String::from("esp"),
-          String::from("on"),
+          String::from("subvolume"),
+          String::from("create"),
+          String::from("@"),
         ],
       ),
-      "set EFI partition as ESP",
+      "Create btrfs subvolume @",
     );
-  } else if !efi {
+    exec_eval(
+      exec_workdir(
+        "btrfs",
+        "/mnt",
+        vec![
+          String::from("subvolume"),
+          String::from("create"),
+          String::from("@home"),
+        ],
+      ),
+      "Create btrfs subvolume @home",
+    );
+    umount("/mnt");
+    mount(format!("{device}p2").as_str(), "/mnt/", "subvol=@");
+    files_eval(files::create_directory("/mnt/boot"), "create /mnt/boot");
+    files_eval(
+      files::create_directory("/mnt/boot/efi"),
+      "create /mnt/boot/efi",
+    );
+    files_eval(files::create_directory("/mnt/home"), "create /mnt/home");
+    mount(format!("{device}p2").as_str(), "/mnt/home", "subvol=@home");
+    mount(format!("{device}p1").as_str(), "/mnt/boot/efi", "");
+  } else {
     exec_eval(
       exec("mkfs.ext4", vec![format!("{}p1", device)]),
       format!("format {device}p1 as ext4").as_str(),
     );
     exec_eval(
-      exec("mkfs.ext4", vec![format!("{}p2", device)]),
-      format!("format {device}p2 as ext4").as_str(),
+      exec(
+        "mkfs.btrfs",
+        vec!["-f".to_string(), format!("{}p2", device)],
+      ),
+      format!("format {device}p2 as btrfs").as_str(),
     );
     mount(format!("{device}p2").as_str(), "/mnt/", "");
-    files_eval(fs::create_directory("/mnt/boot"), "create /mnt/boot");
+    exec_eval(
+      exec_workdir(
+        "btrfs",
+        "/mnt",
+        vec![
+          String::from("subvolume"),
+          String::from("create"),
+          String::from("@"),
+        ],
+      ),
+      "Create btrfs subvolume @",
+    );
+    exec_eval(
+      exec_workdir(
+        "btrfs",
+        "/mnt",
+        vec![
+          String::from("subvolume"),
+          String::from("create"),
+          String::from("@home"),
+        ],
+      ),
+      "Create btrfs subvolume @home",
+    );
+    umount("/mnt");
+    mount(format!("{device}p2").as_str(), "/mnt/", "subvol=@");
+    files_eval(files::create_directory("/mnt/boot"), "create /mnt/boot");
+    files_eval(files::create_directory("/mnt/home"), "create /mnt/home");
+    mount(format!("{device}p2").as_str(), "/mnt/home", "subvol=@home");
     mount(format!("{device}p1").as_str(), "/mnt/boot", "");
-  } else {
-    crash("NVMe devices must be partitioned with EFI", 1);
   }
 }
 
@@ -201,53 +321,96 @@ fn part_disk(device: &Path, efi: bool) {
   if efi {
     exec_eval(
       exec(
-        "mkfs.fat",
+        "mkfs.vfat",
         vec![String::from("-F32"), format!("{}1", device)],
       ),
       format!("format {device}1 as fat32").as_str(),
     );
     exec_eval(
-      exec("mkfs.ext4", vec![format!("{}2", device)]),
-      format!("format {device}2 as ext4").as_str(),
+      exec("mkfs.btrfs", vec!["-f".to_string(), format!("{}2", device)]),
+      format!("format {device}2 as btrfs").as_str(),
     );
     mount(format!("{device}2").as_str(), "/mnt", "");
-    files_eval(fs::create_directory("/mnt/boot"), "create /mnt/boot");
-    files_eval(
-      fs::create_directory("/mnt/boot/efi"),
-      "create /mnt/boot/efi",
-    );
-    mount(format!("{device}1").as_str(), "/mnt/boot/efi", "");
     exec_eval(
-      exec(
-        "parted",
+      exec_workdir(
+        "btrfs",
+        "/mnt",
         vec![
-          String::from("-s"),
-          String::from(&device),
-          String::from("set"),
-          String::from("1"),
-          String::from("esp"),
-          String::from("on"),
+          String::from("subvolume"),
+          String::from("create"),
+          String::from("@"),
         ],
       ),
-      "set EFI partition as ESP",
+      "Create btrfs subvolume @",
     );
-  } else if !efi {
+    exec_eval(
+      exec_workdir(
+        "btrfs",
+        "/mnt",
+        vec![
+          String::from("subvolume"),
+          String::from("create"),
+          String::from("@home"),
+        ],
+      ),
+      "Create btrfs subvolume @home",
+    );
+    umount("/mnt");
+    mount(format!("{device}2").as_str(), "/mnt/", "subvol=@");
+    files_eval(files::create_directory("/mnt/boot"), "create /mnt/boot");
+    files_eval(
+      files::create_directory("/mnt/boot/efi"),
+      "create /mnt/boot/efi",
+    );
+    files_eval(files::create_directory("/mnt/home"), "create /mnt/home");
+    mount(format!("{device}2").as_str(), "/mnt/home", "subvol=@home");
+    mount(format!("{device}1").as_str(), "/mnt/boot/efi", "");
+  } else {
     exec_eval(
       exec("mkfs.ext4", vec![format!("{}1", device)]),
       format!("format {device}1 as ext4").as_str(),
     );
     exec_eval(
-      exec("mkfs.ext4", vec![format!("{}2", device)]),
-      format!("format {device}2 as ext4").as_str(),
+      exec("mkfs.btrfs", vec!["-f".to_string(), format!("{}2", device)]),
+      format!("format {device}2 as btrfs").as_str(),
     );
     mount(format!("{device}2").as_str(), "/mnt/", "");
+    exec_eval(
+      exec_workdir(
+        "btrfs",
+        "/mnt",
+        vec![
+          String::from("subvolume"),
+          String::from("create"),
+          String::from("@"),
+        ],
+      ),
+      "Create btrfs subvolume @",
+    );
+    exec_eval(
+      exec_workdir(
+        "btrfs",
+        "/mnt",
+        vec![
+          String::from("subvolume"),
+          String::from("create"),
+          String::from("@home"),
+        ],
+      ),
+      "create btrfs subvolume @home",
+    );
+    umount("/mnt");
+    mount(format!("{device}2").as_str(), "/mnt/", "subvol=@");
     files_eval(
-      fs::create_directory("/mnt/boot"),
+      files::create_directory("/mnt/boot"),
       "create directory /mnt/boot",
     );
+    files_eval(
+      files::create_directory("/mnt/home"),
+      "create directory /mnt/home",
+    );
+    mount(format!("{device}2").as_str(), "/mnt/home", "subvol=@home");
     mount(format!("{device}1").as_str(), "/mnt/boot", "");
-  } else {
-    crash("Disk devices must be partitioned with EFI", 1);
   }
 }
 
@@ -263,7 +426,7 @@ pub fn mount(partition: &str, mountpoint: &str, options: &str) {
           String::from(options),
         ],
       ),
-      format!("mount {partition} with options {options} at {mountpoint}",).as_str(),
+      format!("mount {partition} with options {options} at {mountpoint}").as_str(),
     );
   } else {
     exec_eval(
@@ -279,6 +442,6 @@ pub fn mount(partition: &str, mountpoint: &str, options: &str) {
 pub fn umount(mountpoint: &str) {
   exec_eval(
     exec("umount", vec![String::from(mountpoint)]),
-    format!("Failed to umount {mountpoint}").as_str(),
-  )
+    format!("unmount {mountpoint}").as_str(),
+  );
 }

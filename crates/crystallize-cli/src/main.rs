@@ -1,32 +1,27 @@
 use clap::Parser;
-use crystallize_core::cli::{BootloaderSubcommand, Command, Opt, UsersSubcommand};
-use crystallize_core::config;
-use crystallize_core::system::*;
-use crystallize_core::utils::logging;
+use crystallize_core::{
+  cli::{BootloaderSubcommand, Command, Opt, UsersSubcommand},
+  system::{base, desktops, locale, network, partition, users},
+  utils::logging,
+};
 
 fn main() {
+  human_panic::setup_panic!();
   let opt: Opt = Opt::parse();
-  logging::init(opt.verbose as usize);
+  logging::init(opt.verbose.into());
 
   match opt.command {
     Command::Partition(args) => {
       let mut partitions = args.partitions;
-      partition::partition(
-        args.device.unwrap_or_default(),
-        args.mode,
-        args.efi,
-        &mut partitions,
-      );
+      partition::partition(args.device, args.mode, args.efi, &mut partitions);
     }
     Command::InstallBase(args) => {
       base::install_base_packages(args.kernel);
     }
-    Command::SetupKeyring => {
-      base::setup_archlinux_keyring();
-    }
     Command::GenFstab => {
       base::genfstab();
     }
+    Command::SetupTimeshift => base::setup_timeshift(),
     Command::Bootloader { subcommand } => match subcommand {
       BootloaderSubcommand::GrubEfi { efidir } => {
         base::install_bootloader_efi(efidir);
@@ -43,26 +38,14 @@ fn main() {
     Command::Networking(args) => {
       if args.ipv6 {
         network::create_hosts();
-        network::enable_ipv6();
+        network::enable_ipv6()
       } else {
         network::create_hosts();
       }
       network::set_hostname(&args.hostname);
     }
-    Command::Swap { size } => {
-      base::enable_swap(size);
-    }
-    Command::CopyLive => {
-      base::copy_live_config();
-    }
-    Command::Nvidia => {
-      base::install_nvidia();
-    }
-    Command::Config { config } => {
-      config::read_config(config);
-    }
-    Command::Desktops { desktop } => {
-      desktops::install_desktop_setup(desktop);
+    Command::Zram => {
+      base::install_zram();
     }
     Command::Users { subcommand } => match subcommand {
       UsersSubcommand::NewUser(args) => {
@@ -78,5 +61,17 @@ fn main() {
         users::root_pass(&password);
       }
     },
+    Command::Nix => {
+      base::install_homemgr();
+    }
+    Command::Flatpak => {
+      base::install_flatpak();
+    }
+    Command::Config { config } => {
+      crystallize_core::config::read_config(config);
+    }
+    Command::Desktops { desktop } => {
+      desktops::install_desktop_setup(desktop);
+    }
   }
 }

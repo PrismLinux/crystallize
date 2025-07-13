@@ -1,16 +1,19 @@
-use crate::cli::DesktopSetup;
-use crate::system::command::exec_chroot;
-use crate::system::install::install;
-use crate::utils::eval::exec_eval;
+use crate::{
+  cli::DesktopSetup,
+  system::{exec::exec_chroot, files, install::install},
+  utils::{exec_eval, files_eval},
+};
 
 pub fn install_desktop_setup(desktop_setup: DesktopSetup) {
   log::debug!("Installing {desktop_setup:?}");
   match desktop_setup {
-    DesktopSetup::Kde => install_kde(),
     DesktopSetup::Gnome => install_gnome(),
+    DesktopSetup::Kde => install_kde(),
+    DesktopSetup::Cinnamon => install_cinnamon(),
     DesktopSetup::None => log::debug!("No desktop setup selected"),
   }
   install_networkmanager();
+  install_tuned_ppd();
 }
 
 fn install_networkmanager() {
@@ -24,23 +27,71 @@ fn install_networkmanager() {
   );
 }
 
+fn install_tuned_ppd() {
+  install(vec!["tuned-ppd", "tuned"]);
+  exec_eval(
+    exec_chroot(
+      "systemctl",
+      vec![String::from("enable"), String::from("tuned-ppd")],
+    ),
+    "Enable power manager (tuned-ppd)",
+  );
+}
+
+fn install_cinnamon() {
+  install(vec![
+    "xorg",
+    "cinnamon",
+    "pipewire",
+    "pipewire-pulse",
+    "pipewire-alsa",
+    "pipewire-jack",
+    "wireplumber",
+    "lightdm",
+    "lightdm-gtk-greeter",
+    "lightdm-gtk-greeter-settings",
+    "metacity",
+    "gnome-shell",
+    "gnome-terminal",
+  ]);
+  files_eval(
+    files::append_file(
+      "/mnt/etc/lightdm/lightdm.conf",
+      "[SeatDefaults]\ngreeter-session=lightdm-gtk-greeter\n",
+    ),
+    "Add lightdm greeter",
+  );
+  enable_dm("lightdm");
+}
+
 fn install_kde() {
   install(vec![
+    "xorg",
+    "plasma-meta",
+    "kde-utilities",
+    "kde-system",
+    "pipewire",
+    "pipewire-pulse",
+    "pipewire-alsa",
+    "pipewire-jack",
+    "wireplumber",
     "sddm",
-    "plasma-desktop",
-    "konsole",
-    "kate",
-    "dolphin",
-    "ark",
-    "plasma-workspace",
-    "papirus-icon-theme",
-    "plasma-firewall",
   ]);
   enable_dm("sddm");
 }
 
 fn install_gnome() {
-  install(vec!["gdm", "gnome", "gedit", "nautilus"]);
+  install(vec![
+    "xorg",
+    "gnome",
+    "sushi",
+    "pipewire",
+    "pipewire-pulse",
+    "pipewire-alsa",
+    "pipewire-jack",
+    "wireplumber",
+    "gdm",
+  ]);
   enable_dm("gdm");
 }
 
