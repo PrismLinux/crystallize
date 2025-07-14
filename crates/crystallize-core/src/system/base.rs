@@ -40,8 +40,10 @@ pub fn install_base_packages(kernel: String) {
     "wget",
     // Base Prism
     "about",
-    "prismlinux-themes-fish",
     "prism",
+    "prismlinux-mirrorlist",
+    "prismlinux-themes-fish",
+    "prismlinux-themes-grub",
     // Extra goodies
     "fastfetch",
     "base-devel",
@@ -72,8 +74,10 @@ pub fn install_base_packages(kernel: String) {
     "btop",
     "fwupd",
     "ntp",
-    "packagekit",
     "unzip",
+    "packagekit-qt6",
+    "gnome-packagekit",
+    "packagekit",
     // Graphic drivers
     "xf86-video-amdgpu",
     "xf86-video-intel",
