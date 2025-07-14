@@ -12,8 +12,12 @@ pub fn install_desktop_setup(desktop_setup: DesktopSetup) {
     DesktopSetup::Cinnamon => install_cinnamon(),
     DesktopSetup::None => log::debug!("No desktop setup selected"),
   }
+
   install_networkmanager();
-  install_tuned_ppd();
+
+  if desktop_setup != DesktopSetup::None {
+    install_tuned_ppd();
+  }
 }
 
 fn install_networkmanager() {
@@ -82,9 +86,7 @@ fn install_kde() {
 
 fn install_gnome() {
   install(vec![
-    "xorg",
     "gnome",
-    "sushi",
     "pipewire",
     "pipewire-pulse",
     "pipewire-alsa",
