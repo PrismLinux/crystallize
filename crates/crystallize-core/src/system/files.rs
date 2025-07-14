@@ -7,10 +7,10 @@ pub fn create_file(path: &str) {
   let returncode = File::create(path);
   match returncode {
     Ok(_) => {
-      log::info!("Create {path}");
+      log::info!("Create {}", path);
     }
     Err(e) => {
-      crash(format!("Create {path}: Failed with error {e}"), 1);
+      crash(format!("Create {}: Failed with error {}", path, e), 1);
     }
   }
 }
@@ -19,11 +19,11 @@ pub fn copy_file(path: &str, destpath: &str) {
   let return_code = std::fs::copy(path, destpath);
   match return_code {
     Ok(_) => {
-      log::info!("Copy {path} to {destpath}");
+      log::info!("Copy {} to {}", path, destpath);
     }
     Err(e) => {
       crash(
-        format!("Copy {path} to {destpath}: Failed with error {e}"),
+        format!("Copy {} to {}: Failed with error {}", path, destpath, e),
         1,
       );
     }
