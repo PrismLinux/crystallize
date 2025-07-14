@@ -4,10 +4,10 @@ use std::path::PathBuf;
 use crate::{
   system::{
     exec::{exec, exec_chroot},
-    files::{self, append_file},
+    files::{self},
     install,
   },
-  utils::{crash, exec_eval, files_eval},
+  utils::{crash, exec_eval},
 };
 
 pub fn install_base_packages(kernel: String) {
@@ -61,10 +61,9 @@ pub fn install_base_packages(kernel: String) {
     "dnsmasq",
     // Repository
     "archlinux-keyring",
+    "archlinuxcn-keyring",
     "chaotic-keyring",
     "chaotic-mirrorlist",
-    // ArchLinux CN
-    "archlinuxcn-keyring",
   ]);
   files::copy_file("/etc/pacman.conf", "/mnt/etc/pacman.conf");
 
@@ -113,12 +112,7 @@ pub fn genfstab() {
 }
 
 pub fn install_bootloader_efi(efidir: PathBuf) {
-  install::install(vec![
-    "grub",
-    "efibootmgr",
-    "prismlinux-themes-grub",
-    "os-prober",
-  ]);
+  install::install(vec!["prismlinux/grub", "efibootmgr", "os-prober"]);
   let efidir = std::path::Path::new("/mnt").join(efidir);
   let efi_str = efidir.to_str().unwrap();
   if !std::path::Path::new(&format!("/mnt{efi_str}")).exists() {
@@ -147,13 +141,6 @@ pub fn install_bootloader_efi(efidir: PathBuf) {
     ),
     "install grub as efi without --removable",
   );
-  files_eval(
-    append_file(
-      "/mnt/etc/default/grub",
-      "GRUB_THEME=\"/usr/share/grub/themes/prismlinux/theme.txt\"",
-    ),
-    "enable prismlinux grub theme",
-  );
   exec_eval(
     exec_chroot(
       "grub-mkconfig",
@@ -164,7 +151,7 @@ pub fn install_bootloader_efi(efidir: PathBuf) {
 }
 
 pub fn install_bootloader_legacy(device: PathBuf) {
-  install::install(vec!["grub", "prismlinux-themes-grub", "os-prober"]);
+  install::install(vec!["prismlinux/grub", "os-prober"]);
   if !device.exists() {
     crash(format!("The device {device:?} does not exist"), 1);
   }
@@ -175,13 +162,6 @@ pub fn install_bootloader_legacy(device: PathBuf) {
       vec![String::from("--target=i386-pc"), device],
     ),
     "install grub as legacy",
-  );
-  files_eval(
-    append_file(
-      "/mnt/etc/default/grub",
-      "GRUB_THEME=\"/usr/share/grub/themes/prismlinux/theme.txt\"",
-    ),
-    "enable prismlinux grub theme",
   );
   exec_eval(
     exec_chroot(

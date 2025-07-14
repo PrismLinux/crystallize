@@ -52,6 +52,9 @@ pub enum Command {
     size: u64,
   },
 
+  #[clap(name = "copy-live-config")]
+  CopyLive,
+
   /// Install and setup Nvidia drivers
   #[clap(name = "nvidia")]
   Nvidia,

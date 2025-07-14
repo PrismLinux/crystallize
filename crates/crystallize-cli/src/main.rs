@@ -1,6 +1,7 @@
 use clap::Parser;
 use crystallize_core::{
   cli::{BootloaderSubcommand, Command, Opt, UsersSubcommand},
+  config,
   system::{base, desktops, locale, network, partition, users},
   utils::logging,
 };
@@ -15,15 +16,9 @@ fn main() {
       let mut partitions = args.partitions;
       partition::partition(args.device, args.mode, args.efi, &mut partitions);
     }
-    Command::InstallBase(args) => {
-      base::install_base_packages(args.kernel);
-    }
-    Command::SetupKeyring => {
-      base::setup_archlinux_keyring();
-    }
-    Command::GenFstab => {
-      base::genfstab();
-    }
+    Command::InstallBase(args) => base::install_base_packages(args.kernel),
+    Command::SetupKeyring => base::setup_archlinux_keyring(),
+    Command::GenFstab => base::genfstab(),
     Command::Bootloader { subcommand } => match subcommand {
       BootloaderSubcommand::GrubEfi { efidir } => {
         base::install_bootloader_efi(efidir);
@@ -46,12 +41,11 @@ fn main() {
       }
       network::set_hostname(&args.hostname);
     }
-    Command::Swap { size } => {
-      base::enable_swap(size);
-    }
-    Command::Nvidia => {
-      base::install_nvidia();
-    }
+    Command::Swap { size } => base::enable_swap(size),
+    Command::CopyLive => base::copy_live_config(),
+    Command::Nvidia => base::install_nvidia(),
+    Command::Config { config } => config::read_config(config),
+    Command::Desktops { desktop } => desktops::install_desktop_setup(desktop),
     Command::Users { subcommand } => match subcommand {
       UsersSubcommand::NewUser(args) => {
         users::new_user(
@@ -66,17 +60,7 @@ fn main() {
         users::root_pass(&password);
       }
     },
-    Command::Nix => {
-      base::install_homemgr();
-    }
-    Command::Flatpak => {
-      base::install_flatpak();
-    }
-    Command::Config { config } => {
-      crystallize_core::config::read_config(config);
-    }
-    Command::Desktops { desktop } => {
-      desktops::install_desktop_setup(desktop);
-    }
+    Command::Flatpak => base::install_flatpak(),
+    Command::Nix => base::install_homemgr(),
   }
 }
