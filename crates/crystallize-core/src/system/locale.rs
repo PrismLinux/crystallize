@@ -66,7 +66,7 @@ pub fn set_keyboard(keyboard: &str) {
   files_eval(
     files::append_file(
       "/mnt/etc/vconsole.conf",
-      format!("KEYMAP={}", keyboard).as_str(),
+      format!("KEYMAP={keyboard}").as_str(),
     ),
     "set keyboard layout in vconsole",
   );

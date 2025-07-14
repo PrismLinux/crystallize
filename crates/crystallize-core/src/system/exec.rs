@@ -15,14 +15,3 @@ pub fn exec_chroot(
     ])
     .status()
 }
-
-pub fn exec_workdir(
-  command: &str,
-  workdir: &str,
-  args: Vec<String>,
-) -> Result<std::process::ExitStatus, std::io::Error> {
-  Command::new(command)
-    .args(args)
-    .current_dir(workdir)
-    .status()
-}

@@ -8,18 +8,18 @@ use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize)]
 struct Config {
-  partition: Partition,
-  bootloader: Bootloader,
-  locale: Locale,
-  networking: Networking,
-  users: Vec<Users>,
-  rootpass: String,
-  desktop: String,
-  flatpak: bool,
-  swap: u64,
-  nvidia: bool,
-  extra_packages: Vec<String>,
-  kernel: String,
+    partition: Partition,
+    bootloader: Bootloader,
+    locale: Locale,
+    networking: Networking,
+    users: Vec<Users>,
+    rootpass: String,
+    desktop: String,
+    swap: u64,
+    nvidia: bool,
+    extra_packages: Vec<String>,
+    kernel: String,
+    flatpak: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -100,15 +100,14 @@ pub fn read_config(configpath: PathBuf) {
   );
   base::install_base_packages(config.kernel);
   base::setup_archlinux_keyring();
+  if config.flatpak {
+    base::install_flatpak();
+  }
   base::genfstab();
   println!();
   log::info!("Installing bootloader : {}", config.bootloader.r#type);
   log::info!("Installing bootloader to : {}", config.bootloader.location);
-  if config.bootloader.r#type == "grub-efi" {
-    base::install_bootloader_efi(PathBuf::from(config.bootloader.location));
-  } else if config.bootloader.r#type == "grub-legacy" {
-    base::install_bootloader_legacy(PathBuf::from(config.bootloader.location));
-  }
+  base::install_bootloader_efi(PathBuf::from(config.bootloader.location));
   println!();
   log::info!("Adding Locales : {:?}", config.locale.locale);
   log::info!("Using keymap : {}", config.locale.keymap);
@@ -124,15 +123,15 @@ pub fn read_config(configpath: PathBuf) {
   if config.networking.ipv6 {
     network::enable_ipv6();
   }
-  log::info!("Enabling nvidia : {}", config.nvidia);
-  if config.nvidia {
-    base::install_nvidia();
-  }
   println!();
   println!("---------");
-  log::info!("Enabling swap: {}M ", config.swap);
-  if config.swap > 0 {
-    base::enable_swap(config.swap);
+  log::info!("Installing desktop : {:?}", config.desktop);
+  match config.desktop.to_lowercase().as_str() {
+    "kde" => desktops::install_desktop_setup(DesktopSetup::Kde),
+    "plasma" => desktops::install_desktop_setup(DesktopSetup::Kde),
+    "gnome" => desktops::install_desktop_setup(DesktopSetup::Gnome),
+    "none/diy" => desktops::install_desktop_setup(DesktopSetup::None),
+    _ => log::info!("No desktop setup selected!"),
   }
   println!();
   println!("---------");
@@ -154,19 +153,16 @@ pub fn read_config(configpath: PathBuf) {
   log::info!("Setting root password : {}", config.rootpass);
   users::root_pass(config.rootpass.as_str());
   println!();
-  log::info!("Installing desktop : {:?}", config.desktop);
-  match config.desktop.to_lowercase().as_str() {
-    "kde" => desktops::install_desktop_setup(DesktopSetup::Kde),
-    "plasma" => desktops::install_desktop_setup(DesktopSetup::Kde),
-    "gnome" => desktops::install_desktop_setup(DesktopSetup::Gnome),
-    "cinnamon" => desktops::install_desktop_setup(DesktopSetup::Cinnamon),
-    "none/diy" => desktops::install_desktop_setup(DesktopSetup::None),
-    _ => log::info!("No desktop setup selected!"),
-  }
+  log::info!("Copying live config");
+  base::copy_live_config();
   println!();
-  log::info!("Enabling flatpak : {}", config.flatpak);
-  if config.flatpak {
-    base::install_flatpak();
+  log::info!("Enabling nvidia : {}", config.nvidia);
+  if config.nvidia {
+    base::install_nvidia();
+  }
+  log::info!("Enabling swap: {}M ", config.swap);
+  if config.swap > 0 {
+    base::enable_swap(config.swap);
   }
   log::info!("Extra packages : {:?}", config.extra_packages);
   let mut extra_packages: Vec<&str> = Vec::new();
@@ -174,6 +170,6 @@ pub fn read_config(configpath: PathBuf) {
     extra_packages.push(config.extra_packages[i].as_str());
   }
   install(extra_packages);
-
+  println!();
   println!("Installation finished! You may reboot now!")
 }
