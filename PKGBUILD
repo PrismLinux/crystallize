@@ -1,7 +1,7 @@
 # Maintainer: CrystalNetwork Studio
 pkgname=crystallize-cli
-pkgver=0.2.2
-pkgrel=3
+pkgver=0.2.3
+pkgrel=1
 pkgdesc="CLI version of Crystallize Installer"
 arch=('x86_64')
 url="https://gitlab.com/crystalnetwork-studio/linux/prismlinux/os-build/crystallize"
