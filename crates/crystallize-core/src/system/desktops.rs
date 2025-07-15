@@ -14,7 +14,7 @@ pub fn install_desktop_setup(desktop_setup: DesktopSetup) {
   }
 
   install_networkmanager();
-
+  install_ufw();
   if desktop_setup != DesktopSetup::None {
     install_tuned_ppd();
   }
@@ -39,6 +39,17 @@ fn install_tuned_ppd() {
       vec![String::from("enable"), String::from("tuned-ppd")],
     ),
     "Enable power manager (tuned-ppd)",
+  );
+}
+
+fn install_ufw() {
+  install(vec!["ufw"]);
+  exec_eval(
+    exec_chroot(
+      "systemctl",
+      vec![String::from("enable"), String::from("ufw")],
+    ),
+    "Enable ufw firewall",
   );
 }
 

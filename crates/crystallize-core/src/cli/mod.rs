@@ -74,7 +74,7 @@ pub enum Command {
   #[clap(name = "flatpak")]
   Flatpak,
 
-  /// Read Jade installation config
+  /// Read Crystallize installation config
   #[clap(name = "config")]
   Config {
     /// The config file to read
