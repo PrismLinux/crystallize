@@ -66,7 +66,7 @@ pub fn install_base_packages(kernel: String) {
     "ttf-liberation",
     "dnsmasq",
     "xdg-user-dirs",
-    "librewolf",
+    "zen-browser",
     "bash",
     "bash-completion",
     "inxi",
@@ -87,7 +87,6 @@ pub fn install_base_packages(kernel: String) {
     "vulkan-intel",
     "vulkan-radeon",
     "vulkan-icd-loader",
-    // "virtualbox-guest-utils",
     // Repository
     "archlinux-keyring",
     "archlinuxcn-keyring",
