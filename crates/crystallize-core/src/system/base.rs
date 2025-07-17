@@ -203,7 +203,6 @@ pub fn install_bootloader_legacy(device: PathBuf) {
 
 pub fn copy_live_config() {
   files::copy_file("/etc/pacman.conf", "/mnt/etc/pacman.conf");
-  files::copy_file("/etc/prismlinux-version", "/mnt/etc/prismlinux-version");
 }
 
 pub fn install_homemgr() {
