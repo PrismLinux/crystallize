@@ -13,7 +13,7 @@ use crate::{
 pub fn install_base_packages(kernel: String) {
   std::fs::create_dir_all("/mnt/etc").unwrap();
   let kernel_to_install = if kernel.is_empty() {
-    "linux"
+    "linux-zen"
   } else {
     match kernel.as_str() {
       "linux-zen" => "linux-zen",
