@@ -8,18 +8,18 @@ use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize)]
 struct Config {
-    partition: Partition,
-    bootloader: Bootloader,
-    locale: Locale,
-    networking: Networking,
-    users: Vec<Users>,
-    rootpass: String,
-    desktop: String,
-    swap: u64,
-    nvidia: bool,
-    extra_packages: Vec<String>,
-    kernel: String,
-    flatpak: bool,
+  partition: Partition,
+  bootloader: Bootloader,
+  locale: Locale,
+  networking: Networking,
+  users: Vec<Users>,
+  rootpass: String,
+  desktop: String,
+  swap: u64,
+  nvidia: bool,
+  extra_packages: Vec<String>,
+  kernel: String,
+  flatpak: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -130,7 +130,7 @@ pub fn read_config(configpath: PathBuf) {
     "kde" => desktops::install_desktop_setup(DesktopSetup::Kde),
     "plasma" => desktops::install_desktop_setup(DesktopSetup::Kde),
     "gnome" => desktops::install_desktop_setup(DesktopSetup::Gnome),
-    "none/diy" => desktops::install_desktop_setup(DesktopSetup::None),
+    "none" => desktops::install_desktop_setup(DesktopSetup::None),
     _ => log::info!("No desktop setup selected!"),
   }
   println!();
