@@ -42,6 +42,7 @@ pub fn install_base_packages(kernel: String) {
     "about",
     "prism",
     "prismlinux-mirrorlist",
+    "prismlinux-hooks",
     "prismlinux-themes-fish",
     "prismlinux-themes-grub",
     // Extra goodies
