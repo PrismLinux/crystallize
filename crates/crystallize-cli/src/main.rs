@@ -41,7 +41,7 @@ fn main() {
       }
       network::set_hostname(&args.hostname);
     }
-    Command::Swap { size } => base::enable_swap(size),
+    Command::Zram { size } => base::install_zram(size),
     Command::CopyLive => base::copy_live_config(),
     Command::Nvidia => base::install_nvidia(),
     Command::Config { config } => config::read_config(config),

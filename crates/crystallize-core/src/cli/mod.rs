@@ -45,9 +45,9 @@ pub enum Command {
   #[clap(name = "networking")]
   Networking(NetworkingArgs),
 
-  /// Set up swap
-  #[clap(name = "swap")]
-  Swap {
+  /// Set up zram
+  #[clap(name = "zram")]
+  Zram {
     #[clap(value_parser)]
     size: u64,
   },

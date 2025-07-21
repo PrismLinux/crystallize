@@ -16,8 +16,23 @@ pub fn install_desktop_setup(desktop_setup: DesktopSetup) {
   install_networkmanager();
   install_ufw();
   if desktop_setup != DesktopSetup::None {
+    desktop_packages();
     install_tuned_ppd();
   }
+}
+
+fn desktop_packages() {
+  install(vec![
+    "pipewire",
+    "pipewire-pulse",
+    "pipewire-alsa",
+    "bluez",
+    "bluez-cups",
+    "packagekit-qt6",
+    "gnome-packagekit",
+    "xdg-user-dirs",
+    "zen-browser",
+  ]);
 }
 
 fn install_networkmanager() {

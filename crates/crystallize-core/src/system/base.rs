@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use crate::{
   system::{
     exec::{exec, exec_chroot},
-    files::{self, append_file},
+    files::{self, append_file, copy_dir},
     install,
   },
   utils::{crash, exec_eval, files_eval},
@@ -54,20 +54,12 @@ pub fn install_base_packages(kernel: String) {
     "noto-fonts-cjk",
     "noto-fonts-extra",
     "ttf-nerd-fonts-symbols-common",
-    // Common packages for all desktops
-    "pipewire",
-    "pipewire-pulse",
-    "pipewire-alsa",
     // "pipewire-jack",
     "wireplumber",
     "cups",
     "cups-pdf",
-    "bluez",
-    "bluez-cups",
     "ttf-liberation",
     "dnsmasq",
-    "xdg-user-dirs",
-    "zen-browser",
     "bash",
     "bash-completion",
     "inxi",
@@ -76,8 +68,6 @@ pub fn install_base_packages(kernel: String) {
     "fwupd",
     "ntp",
     "unzip",
-    "packagekit-qt6",
-    "gnome-packagekit",
     "packagekit",
     // Graphic drivers
     "xf86-video-amdgpu",
@@ -216,7 +206,10 @@ pub fn install_bootloader_legacy(device: PathBuf) {
 }
 
 pub fn copy_live_config() {
-  files::copy_file("/etc/pacman.conf", "/mnt/etc/pacman.conf");
+  let _ = copy_dir(
+    "/etc/NetworkManager/system-connections/",
+    "/mnt/etc/NetworkManager/system-connections/",
+  );
 }
 
 pub fn install_homemgr() {
@@ -298,29 +291,37 @@ pub fn install_nvidia() {
   std::fs::write("/mnt/etc/mkinitcpio.conf", new_initcpio_content).unwrap();
 }
 
-pub fn enable_swap(size: u64) {
-  let size_mb = size.to_string();
+pub fn install_zram(size: u64) {
+  let size_mb = &*size.to_string();
+  install::install(vec!["zram-generator"]);
+  files::create_file("/mnt/etc/systemd/zram-generator.conf");
+
   exec_eval(
-    exec(
-      "fallocate",
-      vec![
-        String::from("-l"),
-        format!("{}M", size_mb),
-        String::from("/mnt/swapfile"),
-      ],
+    exec_chroot(
+      "echo 1 >",
+      vec![String::from("/sys/module/zswap/parameters/enabled")],
     ),
-    "Create swapfile",
+    "enable zram",
   );
-  exec_eval(
-    exec(
-      "chmod",
-      vec![String::from("600"), String::from("/mnt/swapfile")],
-    ),
-    "Set swapfile permissions",
-  );
-  exec_eval(
-    exec("mkswap", vec![String::from("/mnt/swapfile")]),
-    "Format swapfile",
-  );
-  std::fs::write("/mnt/etc/fstab", "\n/swapfile none swap defaults 0 0\n").unwrap();
+
+  match size_mb {
+    "0" => {
+      files_eval(
+        files::append_file(
+          "/mnt/etc/systemd/zram-generator.conf",
+          "[zram0]\nzram-size = min(ram / 2, 4096)\ncompression-algorithm = zstd",
+        ),
+        "Write zram-generator config",
+      );
+    }
+    _ => {
+      files_eval(
+        files::append_file(
+          "/mnt/etc/systemd/zram-generator.conf",
+          &format!("[zram0]\nzram-size = {size_mb}\ncompression-algorithm = zstd").to_string(),
+        ),
+        "Write zram-generator config",
+      );
+    }
+  };
 }

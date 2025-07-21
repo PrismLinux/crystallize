@@ -1,5 +1,6 @@
 use std::fs::{self, File, OpenOptions};
-use std::io::prelude::*;
+use std::io::{self, prelude::*};
+use std::path::Path;
 
 use crate::utils::crash;
 
@@ -48,4 +49,36 @@ pub fn sed_file(path: &str, find: &str, replace: &str) -> std::io::Result<()> {
 
 pub fn create_directory(path: &str) -> std::io::Result<()> {
   std::fs::create_dir_all(path)
+}
+
+pub fn copy_dir(source: impl AsRef<Path>, destination: impl AsRef<Path>) -> io::Result<()> {
+  fs::create_dir_all(&destination)?;
+
+  for entry in fs::read_dir(source)? {
+    match entry {
+      Ok(entry) => {
+        match entry.file_type() {
+          Ok(filetype) => {
+            if filetype.is_dir() {
+              // Recursively copy the subdirectory
+              copy_dir(entry.path(), destination.as_ref().join(entry.file_name()))?;
+            } else {
+              // Copy the file
+              fs::copy(entry.path(), destination.as_ref().join(entry.file_name()))?;
+            }
+          }
+          Err(e) => {
+            eprintln!("Failed to read file type: {e}");
+            return Err(e);
+          }
+        }
+      }
+      Err(e) => {
+        eprintln!("Failed to read directory entry: {e}");
+        return Err(e);
+      }
+    }
+  }
+
+  Ok(())
 }

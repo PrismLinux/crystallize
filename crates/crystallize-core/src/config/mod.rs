@@ -15,7 +15,7 @@ struct Config {
   users: Vec<Users>,
   rootpass: String,
   desktop: String,
-  swap: u64,
+  zram: u64,
   nvidia: bool,
   extra_packages: Vec<String>,
   kernel: String,
@@ -160,9 +160,9 @@ pub fn read_config(configpath: PathBuf) {
   if config.nvidia {
     base::install_nvidia();
   }
-  log::info!("Enabling swap: {}M ", config.swap);
-  if config.swap > 0 {
-    base::enable_swap(config.swap);
+  log::info!("Enabling zram: {}M ", config.zram);
+  if config.zram > 0 {
+    base::install_zram(config.zram);
   }
   log::info!("Extra packages : {:?}", config.extra_packages);
   let mut extra_packages: Vec<&str> = Vec::new();
