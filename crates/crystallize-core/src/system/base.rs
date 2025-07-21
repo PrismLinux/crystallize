@@ -165,7 +165,7 @@ pub fn install_bootloader_efi(efidir: PathBuf) {
       "/mnt/etc/default/grub",
       "GRUB_THEME=\"/usr/share/grub/themes/prismlinux/theme.txt\"",
     ),
-    "enable crystal grub theme",
+    "enable prismlinux grub theme",
   );
   exec_eval(
     exec_chroot(
@@ -194,7 +194,7 @@ pub fn install_bootloader_legacy(device: PathBuf) {
       "/mnt/etc/default/grub",
       "GRUB_THEME=\"/usr/share/grub/themes/prismlinux/theme.txt\"",
     ),
-    "enable crystal grub theme",
+    "enable prismlinux grub theme",
   );
   exec_eval(
     exec_chroot(
