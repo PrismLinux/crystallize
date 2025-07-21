@@ -4,10 +4,10 @@ use std::path::PathBuf;
 use crate::{
   system::{
     exec::{exec, exec_chroot},
-    files::{self},
+    files::{self, append_file},
     install,
   },
-  utils::{crash, exec_eval},
+  utils::{crash, exec_eval, files_eval},
 };
 
 pub fn install_base_packages(kernel: String) {
@@ -170,6 +170,13 @@ pub fn install_bootloader_efi(efidir: PathBuf) {
     ),
     "install grub as efi without --removable",
   );
+  files_eval(
+    append_file(
+      "/mnt/etc/default/grub",
+      "GRUB_THEME=\"/usr/share/grub/themes/prismlinux/theme.txt\"",
+    ),
+    "enable crystal grub theme",
+  );
   exec_eval(
     exec_chroot(
       "grub-mkconfig",
@@ -191,6 +198,13 @@ pub fn install_bootloader_legacy(device: PathBuf) {
       vec![String::from("--target=i386-pc"), device],
     ),
     "install grub as legacy",
+  );
+  files_eval(
+    append_file(
+      "/mnt/etc/default/grub",
+      "GRUB_THEME=\"/usr/share/grub/themes/prismlinux/theme.txt\"",
+    ),
+    "enable crystal grub theme",
   );
   exec_eval(
     exec_chroot(
