@@ -1,10 +1,11 @@
-use crate::cli;
-use crate::cli::{DesktopSetup, PartitionMode};
-use crate::system::install::install;
-use crate::system::{base, desktops, locale, network, partition, users};
-use crate::utils::crash;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+
+use crate::{
+  cli::{self, DesktopSetup, PartitionMode},
+  system::{base, desktops, install, locale, network, partition, users},
+  utils::crash,
+};
 
 #[derive(Serialize, Deserialize)]
 struct Config {
@@ -20,6 +21,7 @@ struct Config {
   extra_packages: Vec<String>,
   kernel: String,
   flatpak: bool,
+  nix: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -98,10 +100,13 @@ pub fn read_config(configpath: PathBuf) {
     config.partition.efi,
     &mut partitions,
   );
-  base::install_base_packages(config.kernel);
   base::setup_archlinux_keyring();
+  base::install_base_packages(config.kernel);
   if config.flatpak {
     base::install_flatpak();
+  }
+  if config.nix {
+    base::install_homemgr();
   }
   base::genfstab();
   println!();
@@ -126,10 +131,14 @@ pub fn read_config(configpath: PathBuf) {
   println!();
   println!("---------");
   log::info!("Installing desktop : {:?}", config.desktop);
+  /*if let Some(desktop) = &config.desktop {
+      desktops::install_desktop_setup(*desktop);
+  }*/
   match config.desktop.to_lowercase().as_str() {
     "kde" => desktops::install_desktop_setup(DesktopSetup::Kde),
     "plasma" => desktops::install_desktop_setup(DesktopSetup::Kde),
     "gnome" => desktops::install_desktop_setup(DesktopSetup::Gnome),
+    "cinnamon" => desktops::install_desktop_setup(DesktopSetup::Cinnamon),
     "none" => desktops::install_desktop_setup(DesktopSetup::None),
     _ => log::info!("No desktop setup selected!"),
   }
@@ -152,6 +161,7 @@ pub fn read_config(configpath: PathBuf) {
   println!();
   log::info!("Setting root password : {}", config.rootpass);
   users::root_pass(config.rootpass.as_str());
+
   println!();
   log::info!("Copying live config");
   base::copy_live_config();
@@ -160,16 +170,17 @@ pub fn read_config(configpath: PathBuf) {
   if config.nvidia {
     base::install_nvidia();
   }
-  log::info!("Enabling zram: {}M ", config.zram);
+  log::info!("Enabling swap: {}M ", config.zram);
   if config.zram > 0 {
     base::install_zram(config.zram);
   }
+  log::info!("Installing user kits");
   log::info!("Extra packages : {:?}", config.extra_packages);
   let mut extra_packages: Vec<&str> = Vec::new();
   for i in 0..config.extra_packages.len() {
     extra_packages.push(config.extra_packages[i].as_str());
   }
-  install(extra_packages);
+  install::install(extra_packages);
   println!();
   println!("Installation finished! You may reboot now!")
 }
