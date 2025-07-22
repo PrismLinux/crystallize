@@ -13,11 +13,12 @@ pub fn install_desktop_setup(desktop_setup: DesktopSetup) {
     DesktopSetup::None => log::debug!("No desktop setup selected"),
   }
 
-  install_networkmanager();
   install_ufw();
+  install_networkmanager();
   if desktop_setup != DesktopSetup::None {
     desktop_packages();
     install_tuned_ppd();
+    enable_cups();
   }
 }
 
@@ -28,6 +29,8 @@ fn desktop_packages() {
     "pipewire-alsa",
     "bluez",
     "bluez-cups",
+    "cups",
+    "cups-pdf",
     "packagekit-qt6",
     "gnome-packagekit",
     "xdg-user-dirs",
@@ -43,6 +46,16 @@ fn install_networkmanager() {
       vec![String::from("enable"), String::from("NetworkManager")],
     ),
     "Enable network manager",
+  );
+}
+
+fn enable_cups() {
+  exec_eval(
+    exec_chroot(
+      "systemctl",
+      vec![String::from("enable"), String::from("cups")],
+    ),
+    "Enable CUPS",
   );
 }
 
@@ -97,9 +110,23 @@ fn install_cinnamon() {
 fn install_kde() {
   install(vec![
     "xorg",
-    "plasma-meta",
-    "kde-utilities",
-    "kde-system",
+    "plasma-desktop",
+    "plasma-workspace",
+    "plasma-pa",
+    "kinfocenter",
+    "ark",
+    "spectacle",
+    "mpv",
+    "powerdevil",
+    "plasma-firewall",
+    "skanpage",
+    "kio-admin",
+    "sddm-kcm",
+    "kwalletmanager",
+    "plasma-systemmonitor",
+    "konsole",
+    "plasma-browser-integration",
+    "kde-gtk-config",
     "pipewire",
     "pipewire-pulse",
     "pipewire-alsa",
