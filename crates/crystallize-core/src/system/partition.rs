@@ -3,7 +3,10 @@ use std::path::{Path, PathBuf};
 
 use crate::{
   cli::{self, PartitionMode},
-  system::{exec::exec, files},
+  system::{
+    exec::exec,
+    files::{self, create_directory},
+  },
   utils::{crash, exec_eval, files_eval},
 };
 
@@ -261,6 +264,15 @@ fn part_disk(device: &Path, efi: bool) {
 }
 
 pub fn mount(partition: &str, mountpoint: &str, options: &str) {
+  // Ensure the mountpoint exists, create it if necessary
+  if !Path::new(mountpoint).exists() {
+    log::debug!("Mount point {mountpoint} does not exist. Creating...");
+    if let Err(e) = create_directory(mountpoint) {
+      crash(format!("Failed to create mount point {mountpoint}: {e}"), 1);
+    }
+  }
+
+  // Proceed with mounting
   if !options.is_empty() {
     exec_eval(
       exec(
