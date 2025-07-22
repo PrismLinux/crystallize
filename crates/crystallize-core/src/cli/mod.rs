@@ -51,7 +51,7 @@ pub enum Command {
     #[clap(value_parser)]
     size: u64,
   },
-
+  /// Copy Live config
   #[clap(name = "copy-live-config")]
   CopyLive,
 
