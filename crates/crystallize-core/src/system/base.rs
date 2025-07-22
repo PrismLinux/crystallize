@@ -4,14 +4,14 @@ use std::path::PathBuf;
 use crate::{
   system::{
     exec::{exec, exec_chroot},
-    files::{self, append_file, copy_dir},
+    files::{self, append_file, copy_dir, create_directory},
     install,
   },
   utils::{crash, exec_eval, files_eval},
 };
 
 pub fn install_base_packages(kernel: String) {
-  std::fs::create_dir_all("/mnt/etc").unwrap();
+  create_directory("/mnt/etc").unwrap();
   let kernel_to_install = if kernel.is_empty() {
     "linux-zen"
   } else {
@@ -38,13 +38,14 @@ pub fn install_base_packages(kernel: String) {
     "sudo",
     "curl",
     "wget",
+    "openssh",
+    "iptables",
     // Base Prism
     "about",
     "prism",
     "prismlinux-mirrorlist",
     "prismlinux-hooks",
     "prismlinux-themes-fish",
-    "prismlinux-themes-grub",
     // Extra goodies
     "fastfetch",
     "base-devel",
@@ -55,8 +56,6 @@ pub fn install_base_packages(kernel: String) {
     "noto-fonts-extra",
     "ttf-nerd-fonts-symbols-common",
     "wireplumber",
-    "cups",
-    "cups-pdf",
     "ttf-liberation",
     "dnsmasq",
     "bash",
@@ -93,14 +92,6 @@ pub fn install_base_packages(kernel: String) {
     ),
     "Enable bluetooth",
   );
-
-  exec_eval(
-    exec_chroot(
-      "systemctl",
-      vec![String::from("enable"), String::from("cups")],
-    ),
-    "Enable CUPS",
-  );
 }
 
 pub fn setup_archlinux_keyring() {
@@ -109,10 +100,7 @@ pub fn setup_archlinux_keyring() {
     "Initialize pacman keyring",
   );
   exec_eval(
-    exec_chroot(
-      "pacman-key",
-      vec![String::from("--populate"), String::from("archlinux")],
-    ),
+    exec_chroot("pacman-key", vec![String::from("--populate")]),
     "Populate pacman keyring",
   );
 }
@@ -131,7 +119,12 @@ pub fn genfstab() {
 }
 
 pub fn install_bootloader_efi(efidir: PathBuf) {
-  install::install(vec!["prismlinux/grub", "efibootmgr", "os-prober"]);
+  install::install(vec![
+    "prismlinux/grub",
+    "efibootmgr",
+    "prismlinux-themes-grub",
+    "os-prober",
+  ]);
   let efidir = std::path::Path::new("/mnt").join(efidir);
   let efi_str = efidir.to_str().unwrap();
   if !std::path::Path::new(&format!("/mnt{efi_str}")).exists() {
@@ -149,17 +142,7 @@ pub fn install_bootloader_efi(efidir: PathBuf) {
     ),
     "install grub as efi with --removable",
   );
-  exec_eval(
-    exec_chroot(
-      "grub-install",
-      vec![
-        String::from("--target=x86_64-efi"),
-        format!("--efi-directory={}", efi_str),
-        String::from("--bootloader-id=prismlinux"),
-      ],
-    ),
-    "install grub as efi without --removable",
-  );
+
   files_eval(
     append_file(
       "/mnt/etc/default/grub",
@@ -167,6 +150,7 @@ pub fn install_bootloader_efi(efidir: PathBuf) {
     ),
     "enable prismlinux grub theme",
   );
+
   exec_eval(
     exec_chroot(
       "grub-mkconfig",
@@ -177,7 +161,11 @@ pub fn install_bootloader_efi(efidir: PathBuf) {
 }
 
 pub fn install_bootloader_legacy(device: PathBuf) {
-  install::install(vec!["prismlinux/grub", "os-prober"]);
+  install::install(vec![
+    "prismlinux/grub",
+    "prismlinux-themes-grub",
+    "os-prober",
+  ]);
   if !device.exists() {
     crash(format!("The device {device:?} does not exist"), 1);
   }
@@ -189,6 +177,7 @@ pub fn install_bootloader_legacy(device: PathBuf) {
     ),
     "install grub as legacy",
   );
+
   files_eval(
     append_file(
       "/mnt/etc/default/grub",
@@ -196,6 +185,7 @@ pub fn install_bootloader_legacy(device: PathBuf) {
     ),
     "enable prismlinux grub theme",
   );
+
   exec_eval(
     exec_chroot(
       "grub-mkconfig",
