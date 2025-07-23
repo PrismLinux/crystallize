@@ -1,5 +1,5 @@
 {
-  description = "A flake for Rust development with the latest toolchain and clippy";
+  description = "Rust development environment";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -7,38 +7,55 @@
     rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      flake-utils,
+      rust-overlay,
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         overlays = [ (import rust-overlay) ];
-        pkgs = import nixpkgs {
-          inherit system;
-          inherit overlays;
-        };
+        pkgs = import nixpkgs { inherit system overlays; };
 
-        rustToolchain = pkgs.rust-bin.stable."1.88.0".default.override {
-          extensions = [ "rust-src" "rust-analyzer" "clippy" ];
+        rustToolchain = pkgs.rust-bin.stable.latest.default.override {
+          extensions = [
+            "rust-src"
+            "rust-analyzer"
+            "clippy"
+            "rustfmt"
+          ];
         };
       in
       {
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
+            gcc
             openssl
-            pkg-config
             gtk4
             libadwaita
+            glib
+            gdk-pixbuf
+            pango
+            cairo
+            librsvg
           ];
 
           nativeBuildInputs = with pkgs; [
             rustToolchain
-
+            pkg-config
             cargo-watch
             cargo-edit
           ];
 
-          # Environment variables
-          RUST_SRC_PATH = "${rustToolchain}/lib/rustlib/src/rust/library";
-          CARGO_HOME = "./.cargo";
+          shellHook = ''
+            echo "Rust toolchain: $(rustc --version)"
+            echo "Rust-analyzer: $(rust-analyzer --version)"
+            export PATH=$PATH:${rustToolchain}/bin
+          '';
         };
-      });
+      }
+    );
 }
