@@ -1,6 +1,6 @@
 pub mod cli;
 pub mod config;
-pub mod system;
+pub mod modules;
 pub mod utils;
 
 pub fn main() {

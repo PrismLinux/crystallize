@@ -1,6 +1,8 @@
 use std::process::Command;
 
-use crate::{system::partition::umount, utils::exec_eval};
+use crate::modules::partition::umount;
+
+use super::exec_eval;
 
 pub fn install(pkgs: Vec<&str>) {
   exec_eval(

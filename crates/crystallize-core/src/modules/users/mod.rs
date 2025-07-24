@@ -1,9 +1,6 @@
 use std::process::Command;
 
-use crate::{
-  system::{exec::exec_chroot, files, install},
-  utils::{exec_eval, files_eval},
-};
+use crate::utils::{exec::exec_chroot, exec_eval, files, files_eval, install};
 
 pub fn new_user(username: &str, hasroot: bool, password: &str, do_hash_pass: bool, shell: &str) {
   let shell: &str = shell;

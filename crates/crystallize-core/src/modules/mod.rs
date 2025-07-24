@@ -1,8 +1,5 @@
 pub mod base;
 pub mod desktops;
-pub mod exec;
-pub mod files;
-pub mod install;
 pub mod locale;
 pub mod network;
 pub mod partition;

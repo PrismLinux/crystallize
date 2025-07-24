@@ -2,7 +2,10 @@ use clap::Parser;
 use crystallize_core::{
   cli::{BootloaderSubcommand, Command, Opt, UsersSubcommand},
   config,
-  system::{base, desktops, locale, network, partition, users},
+  modules::{
+    base::{self, grub, nvidia},
+    desktops, locale, network, partition, users,
+  },
   utils::logging,
 };
 
@@ -27,10 +30,10 @@ fn main() {
     }
     Command::Bootloader { subcommand } => match subcommand {
       BootloaderSubcommand::GrubEfi { efidir } => {
-        base::install_bootloader_efi(efidir);
+        grub::install_bootloader_efi(efidir);
       }
       BootloaderSubcommand::GrubLegacy { device } => {
-        base::install_bootloader_legacy(device);
+        grub::install_bootloader_legacy(device);
       }
     },
     Command::Locale(args) => {
@@ -54,7 +57,7 @@ fn main() {
       base::copy_live_config();
     }
     Command::Nvidia => {
-      base::install_nvidia();
+      nvidia::install_nvidia();
     }
     Command::Config { config } => {
       config::read_config(config);

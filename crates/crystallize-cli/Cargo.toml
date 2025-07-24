@@ -13,4 +13,3 @@ path = "src/main.rs"
 crystallize-core.workspace = true
 clap.workspace = true
 human-panic.workspace = true
-

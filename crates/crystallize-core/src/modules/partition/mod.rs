@@ -3,11 +3,13 @@ use std::path::{Path, PathBuf};
 
 use crate::{
   cli::{self, PartitionMode},
-  system::{
+  utils::{
+    crash,
     exec::exec,
+    exec_eval,
     files::{self, create_directory},
+    files_eval,
   },
-  utils::{crash, exec_eval, files_eval},
 };
 
 pub fn fmt_mount(mountpoint: &str, filesystem: &str, blockdevice: &str) {

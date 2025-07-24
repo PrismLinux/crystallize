@@ -1,0 +1,88 @@
+use crate::utils::{files, files_eval, install::install};
+
+use super::services::enable_service;
+
+pub(super) fn packages() {
+  install(vec![
+    "pipewire",
+    "pipewire-pulse",
+    "pipewire-alsa",
+    "bluez",
+    "bluez-cups",
+    "cups",
+    "cups-pdf",
+    "packagekit-qt6",
+    "gnome-packagekit",
+    "xdg-user-dirs",
+    "zen-browser",
+  ]);
+}
+
+pub(super) fn kde() {
+  install(vec![
+    "plasma-desktop",
+    "plasma-workspace",
+    "plasma-pa",
+    "plasma-nm",
+    "kinfocenter",
+    "ark",
+    "spectacle",
+    "mpv",
+    "powerdevil",
+    "plasma-firewall",
+    "skanpage",
+    "kio-admin",
+    "sddm-kcm",
+    "kwalletmanager",
+    "plasma-systemmonitor",
+    "konsole",
+    "plasma-browser-integration",
+    "kde-gtk-config",
+    "pipewire",
+    "pipewire-pulse",
+    "pipewire-alsa",
+    "pipewire-jack",
+    "wireplumber",
+    "sddm",
+  ]);
+  enable_service("sddm", "Enable sddm");
+}
+
+pub(super) fn cinnamon() {
+  install(vec![
+    "xorg",
+    "cinnamon",
+    "pipewire",
+    "pipewire-pulse",
+    "pipewire-alsa",
+    "pipewire-jack",
+    "wireplumber",
+    "lightdm",
+    "lightdm-gtk-greeter",
+    "lightdm-gtk-greeter-settings",
+    "metacity",
+    "gnome-shell",
+    "gnome-terminal",
+  ]);
+  files_eval(
+    files::append_file(
+      "/mnt/etc/lightdm/lightdm.conf",
+      "[SeatDefaults]\ngreeter-session=lightdm-gtk-greeter\n",
+    ),
+    "Add lightdm greeter",
+  );
+  enable_service("lightdm", "Enabling LightDM");
+}
+
+pub(super) fn gnome() {
+  install(vec![
+    "gnome",
+    "pipewire",
+    "pipewire-pulse",
+    "pipewire-alsa",
+    "pipewire-jack",
+    "wireplumber",
+    "gdm",
+  ]);
+  enable_service("gdm", "Enabling gdm");
+}

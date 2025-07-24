@@ -1,7 +1,4 @@
-use crate::{
-  system::{exec::exec_chroot, files},
-  utils::{exec_eval, files_eval},
-};
+use crate::utils::{exec::exec_chroot, exec_eval, files, files_eval};
 
 pub fn set_timezone(timezone: &str) {
   exec_eval(

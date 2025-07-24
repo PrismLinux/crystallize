@@ -3,8 +3,11 @@ use std::path::PathBuf;
 
 use crate::{
   cli::{self, DesktopSetup, PartitionMode},
-  system::{base, desktops, install, locale, network, partition, users},
-  utils::crash,
+  modules::{
+    base::{self, grub, nvidia},
+    desktops, locale, network, partition, users,
+  },
+  utils::{crash, install},
 };
 
 #[derive(Serialize, Deserialize)]
@@ -112,7 +115,7 @@ pub fn read_config(configpath: PathBuf) {
   println!();
   log::info!("Installing bootloader : {}", config.bootloader.r#type);
   log::info!("Installing bootloader to : {}", config.bootloader.location);
-  base::install_bootloader_efi(PathBuf::from(config.bootloader.location));
+  grub::install_bootloader_efi(PathBuf::from(config.bootloader.location));
   println!();
   log::info!("Adding Locales : {:?}", config.locale.locale);
   log::info!("Using keymap : {}", config.locale.keymap);
@@ -131,9 +134,6 @@ pub fn read_config(configpath: PathBuf) {
   println!();
   println!("---------");
   log::info!("Installing desktop : {:?}", config.desktop);
-  /*if let Some(desktop) = &config.desktop {
-      desktops::install_desktop_setup(*desktop);
-  }*/
   match config.desktop.to_lowercase().as_str() {
     "kde" => desktops::install_desktop_setup(DesktopSetup::Kde),
     "plasma" => desktops::install_desktop_setup(DesktopSetup::Kde),
@@ -168,7 +168,7 @@ pub fn read_config(configpath: PathBuf) {
   println!();
   log::info!("Enabling nvidia : {}", config.nvidia);
   if config.nvidia {
-    base::install_nvidia();
+    nvidia::install_nvidia();
   }
   log::info!("Enabling swap: {}M ", config.zram);
   if config.zram > 0 {

@@ -1,4 +1,4 @@
-use crate::{system::files, utils::files_eval};
+use crate::utils::{files, files_eval};
 
 pub fn set_hostname(hostname: &str) {
   println!("Setting hostname to {hostname}");
