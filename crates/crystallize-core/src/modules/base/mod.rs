@@ -40,6 +40,7 @@ pub fn install_base_packages(kernel: String) {
     "wget",
     "openssh",
     "iptables",
+    "lsb-release",
     // Base Prism
     "about",
     "prism",
