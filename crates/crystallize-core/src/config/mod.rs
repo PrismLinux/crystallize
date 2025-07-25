@@ -103,7 +103,7 @@ pub fn read_config(configpath: PathBuf) {
     config.partition.efi,
     &mut partitions,
   );
-  base::setup_archlinux_keyring();
+  base::setup_archlinux_keyring().unwrap();
   base::install_base_packages(config.kernel);
   if config.flatpak {
     base::install_flatpak();

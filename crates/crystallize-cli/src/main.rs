@@ -20,7 +20,7 @@ fn main() {
       partition::partition(args.device, args.mode, args.efi, &mut partitions);
     }
     Command::SetupKeyring => {
-      base::setup_archlinux_keyring();
+      base::setup_archlinux_keyring().unwrap();
     }
     Command::InstallBase(args) => {
       base::install_base_packages(args.kernel);
