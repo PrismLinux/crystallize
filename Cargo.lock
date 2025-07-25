@@ -229,6 +229,7 @@ dependencies = [
  "flexi_logger",
  "human-panic",
  "log",
+ "regex",
  "serde",
  "serde_json",
 ]

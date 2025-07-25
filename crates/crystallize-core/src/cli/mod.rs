@@ -198,7 +198,8 @@ pub enum UsersSubcommand {
   /// Set the password of the root user
   #[clap(name="root-password", aliases=&["root-pass", "rootPass"])]
   RootPass {
-    /// The password to set. NOTE: Takes hashed password, use `openssl passwd -1 <password>` to generate the hash.
+    /// The password to set.
+    /// NOTE: Takes hashed password, use `openssl passwd -1 <password>` to generate the hash.
     password: String,
   },
 }

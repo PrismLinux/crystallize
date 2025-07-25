@@ -2,6 +2,7 @@ use std::process::Command;
 
 use crate::utils::{exec::exec_chroot, exec_eval, files, files_eval, install};
 
+/// Generate New user
 pub fn new_user(username: &str, hasroot: bool, password: &str, do_hash_pass: bool, shell: &str) {
   let shell: &str = shell;
   if do_hash_pass {
@@ -82,6 +83,7 @@ pub fn new_user(username: &str, hasroot: bool, password: &str, do_hash_pass: boo
   }
 }
 
+/// Hash password
 pub fn hash_pass(password: &str) -> std::process::Output {
   Command::new("openssl")
     .args(["passwd", "-1", password])
@@ -89,6 +91,7 @@ pub fn hash_pass(password: &str) -> std::process::Output {
     .expect("Failed to hash password")
 }
 
+/// Set root password
 pub fn root_pass(root_pass: &str) {
   exec_eval(
     exec_chroot(

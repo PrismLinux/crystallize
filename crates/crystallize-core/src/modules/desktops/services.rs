@@ -1,8 +1,12 @@
-use crate::utils::{exec::exec_chroot, exec_eval, install::install};
+use crate::utils::{exec::exec_chroot, exec_eval, files::copy_dir, install::install};
 
 pub(super) fn networkmanager() {
   install(vec!["networkmanager"]);
   enable_service("NetworkManager", "Enable NetworkManager");
+  let _ = copy_dir(
+    "/etc/NetworkManager/system-connections/",
+    "/mnt/etc/NetworkManager/system-connections/",
+  );
 }
 
 pub(super) fn bluetooth() {
@@ -11,7 +15,10 @@ pub(super) fn bluetooth() {
 
 pub(super) fn ufw() {
   install(vec!["ufw"]);
-  enable_service("ufw", "Enable Firewall");
+  exec_eval(
+    exec_chroot("ufw", vec![String::from("enable")]),
+    "Enable Firewall",
+  );
 }
 
 pub(super) fn cups() {

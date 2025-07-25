@@ -8,7 +8,7 @@ use crate::{
     exec::exec,
     exec_eval,
     files::{self, create_directory},
-    files_eval,
+    files_eval, install,
   },
 };
 
@@ -19,10 +19,13 @@ pub fn fmt_mount(mountpoint: &str, filesystem: &str, blockdevice: &str) {
       "mkfs.fat",
       vec![String::from("-F32"), String::from(blockdevice)],
     ),
-    "btrfs" => (
-      "mkfs.btrfs",
-      vec![String::from("-f"), String::from(blockdevice)],
-    ),
+    "btrfs" => {
+      install::install(vec!["btrfs-progs", "grub-btrfs"]);
+      (
+        "mkfs.btrfs",
+        vec![String::from("-f"), String::from(blockdevice)],
+      )
+    }
     "xfs" => ("mkfs.xfs", vec![String::from(blockdevice)]),
     "noformat" | "don't format" => {
       log::debug!("Not formatting {blockdevice}");

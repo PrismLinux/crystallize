@@ -6,98 +6,120 @@ pub mod nvidia;
 use crate::utils::{
   exec::{exec, exec_chroot},
   exec_eval,
-  files::{self, copy_dir, create_directory},
+  files::{self, create_directory},
   files_eval, install,
 };
 
+const SUPPORTED_KERNELS: &[&str] = &["linux-zen", "linux-lts", "linux-hardened"];
+
+const BASE_PACKAGES: &[&str] = &[
+  // Base Arch
+  "base",
+  "linux-firmware",
+  "sof-firmware",
+  "man-db",
+  "man-pages",
+  "nano",
+  "sudo",
+  "curl",
+  "wget",
+  "openssh",
+  "iptables",
+  "lsb-release",
+  // Base Prism
+  "about",
+  "prism",
+  "prismlinux-mirrorlist",
+  "prismlinux-hooks",
+  "prismlinux-themes-fish",
+  // Extras
+  "fastfetch",
+  "base-devel",
+  "wireplumber",
+  "ttf-liberation",
+  "dnsmasq",
+  "bash",
+  "glibc-locales",
+  "bash-completion",
+  "inxi",
+  "acpi",
+  "fwupd",
+  "ntp",
+  "unzip",
+  "packagekit",
+  // Fonts
+  "noto-fonts",
+  "noto-fonts-emoji",
+  "noto-fonts-cjk",
+  "noto-fonts-extra",
+  "ttf-nerd-fonts-symbols-common",
+  // Graphics
+  "xf86-video-amdgpu",
+  "xf86-video-intel",
+  "xf86-video-nouveau",
+  "xf86-video-vesa",
+  "mesa",
+  "vulkan-intel",
+  "vulkan-radeon",
+  "vulkan-icd-loader",
+  // Repositories
+  "archlinux-keyring",
+  "archlinuxcn-keyring",
+  "chaotic-keyring",
+  "chaotic-mirrorlist",
+];
+
 pub fn install_base_packages(kernel: String) {
   create_directory("/mnt/etc").unwrap();
-  let kernel_to_install = if kernel.is_empty() {
-    "linux-zen"
-  } else {
-    match kernel.as_str() {
-      "linux-zen" => "linux-zen",
-      "linux-lts" => "linux-lts",
-      "linux-hardened" => "linux-hardened",
-      _ => {
-        warn!("Unknown kernel: {kernel}, using default instead");
-        "linux-zen"
-      }
+
+  let kernel_pkg = match kernel.as_str() {
+    "" => "linux-zen",
+    k if SUPPORTED_KERNELS.contains(&k) => k,
+    k => {
+      warn!("Unknown kernel: {k}, using linux-zen instead");
+      "linux-zen"
     }
   };
-  install::install(vec![
-    // Base Arch
-    "base",
-    kernel_to_install,
-    format!("{kernel_to_install}-headers").as_str(),
-    "linux-firmware",
-    "sof-firmware",
-    "man-db",
-    "man-pages",
-    "nano",
-    "sudo",
-    "curl",
-    "wget",
-    "openssh",
-    "iptables",
-    "lsb-release",
-    // Base Prism
-    "about",
-    "prism",
-    "prismlinux-mirrorlist",
-    "prismlinux-hooks",
-    "prismlinux-themes-fish",
-    // Extra goodies
-    "fastfetch",
-    "base-devel",
-    // Fonts
-    "noto-fonts",
-    "noto-fonts-emoji",
-    "noto-fonts-cjk",
-    "noto-fonts-extra",
-    "ttf-nerd-fonts-symbols-common",
-    "wireplumber",
-    "ttf-liberation",
-    "dnsmasq",
-    "bash",
-    "glibc-locales",
-    "bash-completion",
-    "inxi",
-    "acpi",
-    "fwupd",
-    "ntp",
-    "unzip",
-    "packagekit",
-    // Graphic drivers
-    "xf86-video-amdgpu",
-    "xf86-video-intel",
-    "xf86-video-nouveau",
-    "xf86-video-vesa",
-    "mesa",
-    "vulkan-intel",
-    "vulkan-radeon",
-    "vulkan-icd-loader",
-    // Repository
-    "archlinux-keyring",
-    "archlinuxcn-keyring",
-    "chaotic-keyring",
-    "chaotic-mirrorlist",
-  ]);
+
+  let headers = format!("{kernel_pkg}-headers");
+  let mut packages = Vec::with_capacity(BASE_PACKAGES.len() + 2);
+  packages.extend_from_slice(BASE_PACKAGES);
+  packages.push(kernel_pkg);
+  packages.push(&headers);
+
+  install::install(packages);
   files::copy_file("/etc/pacman.conf", "/mnt/etc/pacman.conf");
 }
 
 /// Update mirror keyring
-pub fn setup_archlinux_keyring() {
-  exec_eval(
-    exec_chroot("pacman-key", vec![String::from("--init")]),
-    "Initialize pacman keyring",
-  );
-  exec_eval(
-    exec_chroot("pacman-key", vec![String::from("--populate")]),
-    "Populate pacman keyring",
-  );
-}
+pub fn setup_archlinux_keyring() -> Result<(), Box<dyn std::error::Error>> {
+  let keyring_steps = [
+    ("--init", "Initialize pacman keyring"),
+    ("--refresh", "Refresh pacman keyring"),
+    ("--populate", "Populate pacman keyring"),
+  ];
 
+  for (arg, description) in keyring_steps {
+    match exec_chroot("pacman-key", vec![arg.to_string()]) {
+      Ok(status) if status.success() => {
+        println!("✓ {description}");
+      }
+      Ok(status) => {
+        eprintln!(
+          "✗ {} failed with exit code: {:?}",
+          description,
+          status.code()
+        );
+        return Err(format!("Failed to {}", description.to_lowercase()).into());
+      }
+      Err(e) => {
+        eprintln!("✗ {description} failed: {e}");
+        return Err(e.into());
+      }
+    }
+  }
+  Ok(())
+}
 pub fn genfstab() {
   exec_eval(
     exec(
@@ -112,16 +134,10 @@ pub fn genfstab() {
 }
 
 /// Copy configuration from LiveISO to System
-pub fn copy_live_config() {
-  let _ = copy_dir(
-    "/etc/NetworkManager/system-connections/",
-    "/mnt/etc/NetworkManager/system-connections/",
-  );
-}
+pub fn copy_live_config() {}
 
 /// Using Zram over standard Swap
 pub fn install_zram(size: u64) {
-  let size_mb = &*size.to_string();
   install::install(vec!["zram-generator"]);
   files::create_file("/mnt/etc/systemd/zram-generator.conf");
 
@@ -133,26 +149,16 @@ pub fn install_zram(size: u64) {
     "enable zram",
   );
 
-  match size_mb {
-    "0" => {
-      files_eval(
-        files::append_file(
-          "/mnt/etc/systemd/zram-generator.conf",
-          "[zram0]\nzram-size = min(ram / 2, 4096)\ncompression-algorithm = zstd",
-        ),
-        "Write zram-generator config",
-      );
-    }
-    _ => {
-      files_eval(
-        files::append_file(
-          "/mnt/etc/systemd/zram-generator.conf",
-          &format!("[zram0]\nzram-size = {size_mb}\ncompression-algorithm = zstd").to_string(),
-        ),
-        "Write zram-generator config",
-      );
-    }
+  let zram_config = if size == 0 {
+    "[zram0]\nzram-size = min(ram / 2, 4096)\ncompression-algorithm = zstd"
+  } else {
+    &format!("[zram0]\nzram-size = {size}\ncompression-algorithm = zstd")
   };
+
+  files_eval(
+    files::append_file("/mnt/etc/systemd/zram-generator.conf", zram_config),
+    "Write zram-generator config",
+  );
 }
 
 pub fn install_homemgr() {
