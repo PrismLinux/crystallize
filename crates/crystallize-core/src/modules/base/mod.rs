@@ -1,5 +1,5 @@
+use anyhow::{anyhow, Result};
 use log::warn;
-
 pub mod grub;
 pub mod nvidia;
 
@@ -7,7 +7,7 @@ use crate::utils::{
   exec::{exec, exec_chroot},
   exec_eval,
   files::{self, create_directory},
-  files_eval, install,
+  install,
 };
 
 const SUPPORTED_KERNELS: &[&str] = &["linux-zen", "linux-lts", "linux-hardened"];
@@ -24,6 +24,7 @@ const BASE_PACKAGES: &[&str] = &[
   "curl",
   "wget",
   "openssh",
+  "rate-mirrors",
   "iptables",
   "lsb-release",
   // Base Prism
@@ -70,7 +71,12 @@ const BASE_PACKAGES: &[&str] = &[
 ];
 
 pub fn install_base_packages(kernel: String) {
-  create_directory("/mnt/etc").unwrap();
+  log::info!("Installing base packages to /mnt");
+
+  // Ensure /mnt/etc exists
+  if let Err(e) = create_directory("/mnt/etc") {
+    log::warn!("Failed to create /mnt/etc: {e}");
+  }
 
   let kernel_pkg = match kernel.as_str() {
     "" => "linux-zen",
@@ -87,40 +93,78 @@ pub fn install_base_packages(kernel: String) {
   packages.push(kernel_pkg);
   packages.push(&headers);
 
-  install::install(packages);
-  files::copy_file("/etc/pacman.conf", "/mnt/etc/pacman.conf");
+  install::install_base(packages);
+
+  // Copy pacman configuration
+  if let Err(e) = files::copy_file("/etc/pacman.conf", "/mnt/etc/pacman.conf") {
+    log::error!("Failed to copy pacman.conf: {e}");
+  }
 }
 
 /// Update mirror keyring
-pub fn setup_archlinux_keyring() -> Result<(), Box<dyn std::error::Error>> {
+pub fn setup_archlinux_keyring() -> Result<()> {
+  log::info!("Setting up Arch Linux keyring in chroot");
+
+  // Verify that pacman-key exists in the chroot
+  match exec_chroot("which", vec!["pacman-key".to_string()]) {
+    Ok(status) if status.success() => {
+      log::debug!("pacman-key found in chroot");
+    }
+    _ => {
+      return Err(anyhow!(
+        "pacman-key not found in chroot environment. Base packages may not be installed properly."
+      ));
+    }
+  }
+
   let keyring_steps = [
     ("--init", "Initialize pacman keyring"),
-    ("--refresh", "Refresh pacman keyring"),
     ("--populate", "Populate pacman keyring"),
   ];
 
   for (arg, description) in keyring_steps {
+    log::info!("Running: pacman-key {arg}");
     match exec_chroot("pacman-key", vec![arg.to_string()]) {
       Ok(status) if status.success() => {
-        println!("✓ {description}");
+        log::info!("✓ {description}");
       }
       Ok(status) => {
-        eprintln!(
+        let error_msg = format!(
           "✗ {} failed with exit code: {:?}",
           description,
           status.code()
         );
-        return Err(format!("Failed to {}", description.to_lowercase()).into());
+        log::error!("{error_msg}");
+        return Err(anyhow!("Failed to {}", description.to_lowercase()));
       }
       Err(e) => {
-        eprintln!("✗ {description} failed: {e}");
+        let error_msg = format!("✗ {description} failed: {e}");
+        log::error!("{error_msg}");
         return Err(e.into());
       }
     }
   }
+
+  // Refresh the keyring
+  log::info!("Refreshing keyring");
+  match exec_chroot("pacman", vec!["-Sy".to_string(), "--noconfirm".to_string()]) {
+    Ok(status) if status.success() => {
+      log::info!("✓ Keyring refreshed successfully");
+    }
+    Ok(status) => {
+      log::warn!("Keyring refresh failed with exit code: {:?}", status.code());
+    }
+    Err(e) => {
+      log::warn!("Keyring refresh failed: {e}");
+    }
+  }
+
   Ok(())
 }
+
+/// Generate Fstab
 pub fn genfstab() {
+  log::info!("Generating fstab");
   exec_eval(
     exec(
       "bash",
@@ -134,20 +178,21 @@ pub fn genfstab() {
 }
 
 /// Copy configuration from LiveISO to System
-pub fn copy_live_config() {}
+pub fn copy_live_config() {
+  log::info!("Copying live configuration");
+}
 
-/// Using Zram over standard Swap
+/// Using Zram
 pub fn install_zram(size: u64) {
-  install::install(vec!["zram-generator"]);
-  files::create_file("/mnt/etc/systemd/zram-generator.conf");
+  log::info!("Installing and configuring ZRAM");
 
-  exec_eval(
-    exec_chroot(
-      "echo 1 >",
-      vec![String::from("/sys/module/zswap/parameters/enabled")],
-    ),
-    "enable zram",
-  );
+  install::install(vec!["zram-generator"]);
+
+  // Ensure the systemd directory exists
+  if let Err(e) = files::create_directory("/mnt/etc/systemd") {
+    log::error!("Failed to create systemd directory: {e}");
+    return;
+  }
 
   let zram_config = if size == 0 {
     "[zram0]\nzram-size = min(ram / 2, 4096)\ncompression-algorithm = zstd"
@@ -155,18 +200,23 @@ pub fn install_zram(size: u64) {
     &format!("[zram0]\nzram-size = {size}\ncompression-algorithm = zstd")
   };
 
-  files_eval(
-    files::append_file("/mnt/etc/systemd/zram-generator.conf", zram_config),
-    "Write zram-generator config",
-  );
+  if let Err(e) = files::write_file("/mnt/etc/systemd/zram-generator.conf", zram_config) {
+    log::error!("Failed to write zram config: {e}");
+    return;
+  }
+
+  log::info!("ZRAM configuration complete");
 }
 
 pub fn install_homemgr() {
+  log::info!("Installing Nix package manager");
   install::install(vec!["nix"]);
 }
 
 pub fn install_flatpak() {
+  log::info!("Installing Flatpak");
   install::install(vec!["flatpak"]);
+
   exec_eval(
     exec_chroot(
       "flatpak",
@@ -178,5 +228,5 @@ pub fn install_flatpak() {
       ],
     ),
     "add flathub remote",
-  )
+  );
 }

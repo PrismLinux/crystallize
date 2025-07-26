@@ -35,7 +35,11 @@ pub(super) fn enable_service(service: &str, logmsg: &str) {
   exec_eval(
     exec_chroot(
       "systemctl",
-      vec![String::from("enable"), String::from(service)],
+      vec![
+        String::from("--no-reload"),
+        String::from("enable"),
+        String::from(service),
+      ],
     ),
     (*logmsg).to_string().as_str(),
   );

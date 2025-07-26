@@ -13,8 +13,13 @@ use crate::{
 };
 
 pub fn fmt_mount(mountpoint: &str, filesystem: &str, blockdevice: &str) {
+  let _ = exec("umount", vec![String::from(blockdevice)]);
+
   let fs_command = match filesystem {
-    "ext4" => ("mkfs.ext4", vec![String::from(blockdevice)]),
+    "ext4" => (
+      "mkfs.ext4",
+      vec![String::from("-F"), String::from(blockdevice)],
+    ),
     "fat32" => (
       "mkfs.fat",
       vec![String::from("-F32"), String::from(blockdevice)],
@@ -26,7 +31,10 @@ pub fn fmt_mount(mountpoint: &str, filesystem: &str, blockdevice: &str) {
         vec![String::from("-f"), String::from(blockdevice)],
       )
     }
-    "xfs" => ("mkfs.xfs", vec![String::from(blockdevice)]),
+    "xfs" => (
+      "mkfs.xfs",
+      vec![String::from("-f"), String::from(blockdevice)],
+    ),
     "noformat" | "don't format" => {
       log::debug!("Not formatting {blockdevice}");
       return;
@@ -58,6 +66,9 @@ pub fn partition(
   partitions: &mut Vec<cli::Partition>,
 ) {
   println!("{mode:?}");
+
+  cleanup_mounts();
+
   match mode {
     PartitionMode::Auto => {
       if !device.exists() {
@@ -102,8 +113,27 @@ pub fn partition(
   }
 }
 
+fn cleanup_mounts() {
+  let mount_points = vec![
+    "/mnt/boot/efi",
+    "/mnt/boot",
+    "/mnt/dev",
+    "/mnt/proc",
+    "/mnt/sys",
+    "/mnt",
+  ];
+
+  for mount_point in mount_points {
+    let _ = exec("umount", vec![String::from(mount_point)]);
+  }
+}
+
 fn partition_with_efi(device: &Path) {
   let device = device.to_string_lossy().to_string();
+
+  // Ensure device is not mounted
+  let _ = exec("umount", vec![String::from(&device)]);
+
   exec_eval(
     exec(
       "parted",
@@ -164,6 +194,10 @@ fn partition_with_efi(device: &Path) {
 fn part_nvme(device: &Path, efi: bool) {
   let device = device.to_string_lossy().to_string();
   if efi {
+    // Ensure partitions are unmounted before formatting
+    let _ = exec("umount", vec![format!("{}p1", device)]);
+    let _ = exec("umount", vec![format!("{}p2", device)]);
+
     exec_eval(
       exec(
         "mkfs.fat",
@@ -172,7 +206,10 @@ fn part_nvme(device: &Path, efi: bool) {
       format!("format {device}p1 as fat32").as_str(),
     );
     exec_eval(
-      exec("mkfs.ext4", vec![format!("{}p2", device)]),
+      exec(
+        "mkfs.ext4",
+        vec![String::from("-F"), format!("{}p2", device)],
+      ),
       format!("format {device}p2 as ext4").as_str(),
     );
     mount(format!("{device}p2").as_str(), "/mnt", "");
@@ -197,12 +234,21 @@ fn part_nvme(device: &Path, efi: bool) {
       "set EFI partition as ESP",
     );
   } else if !efi {
+    let _ = exec("umount", vec![format!("{}p1", device)]);
+    let _ = exec("umount", vec![format!("{}p2", device)]);
+
     exec_eval(
-      exec("mkfs.ext4", vec![format!("{}p1", device)]),
+      exec(
+        "mkfs.ext4",
+        vec![String::from("-F"), format!("{}p1", device)],
+      ),
       format!("format {device}p1 as ext4").as_str(),
     );
     exec_eval(
-      exec("mkfs.ext4", vec![format!("{}p2", device)]),
+      exec(
+        "mkfs.ext4",
+        vec![String::from("-F"), format!("{}p2", device)],
+      ),
       format!("format {device}p2 as ext4").as_str(),
     );
     mount(format!("{device}p2").as_str(), "/mnt/", "");
@@ -216,6 +262,10 @@ fn part_nvme(device: &Path, efi: bool) {
 fn part_disk(device: &Path, efi: bool) {
   let device = device.to_string_lossy().to_string();
   if efi {
+    // Ensure partitions are unmounted before formatting
+    let _ = exec("umount", vec![format!("{}1", device)]);
+    let _ = exec("umount", vec![format!("{}2", device)]);
+
     exec_eval(
       exec(
         "mkfs.fat",
@@ -224,7 +274,10 @@ fn part_disk(device: &Path, efi: bool) {
       format!("format {device}1 as fat32").as_str(),
     );
     exec_eval(
-      exec("mkfs.ext4", vec![format!("{}2", device)]),
+      exec(
+        "mkfs.ext4",
+        vec![String::from("-F"), format!("{}2", device)],
+      ),
       format!("format {device}2 as ext4").as_str(),
     );
     mount(format!("{device}2").as_str(), "/mnt", "");
@@ -249,12 +302,21 @@ fn part_disk(device: &Path, efi: bool) {
       "set EFI partition as ESP",
     );
   } else if !efi {
+    let _ = exec("umount", vec![format!("{}1", device)]);
+    let _ = exec("umount", vec![format!("{}2", device)]);
+
     exec_eval(
-      exec("mkfs.ext4", vec![format!("{}1", device)]),
+      exec(
+        "mkfs.ext4",
+        vec![String::from("-F"), format!("{}1", device)],
+      ),
       format!("format {device}1 as ext4").as_str(),
     );
     exec_eval(
-      exec("mkfs.ext4", vec![format!("{}2", device)]),
+      exec(
+        "mkfs.ext4",
+        vec![String::from("-F"), format!("{}2", device)],
+      ),
       format!("format {device}2 as ext4").as_str(),
     );
     mount(format!("{device}2").as_str(), "/mnt/", "");

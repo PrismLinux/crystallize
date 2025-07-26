@@ -71,7 +71,7 @@ pub fn new_user(username: &str, hasroot: bool, password: &str, do_hash_pass: boo
       files::create_directory("/mnt/var/lib/AccountsService/users/"),
       "Create /mnt/var/lib/AcountsService",
     );
-    files::create_file(&format!("/mnt/var/lib/AccountsService/users/{username}"));
+    let _ = files::create_file(&format!("/mnt/var/lib/AccountsService/users/{username}"));
     files_eval(
       files::append_file(
         &format!("/mnt/var/lib/AccountsService/users/{username}"),

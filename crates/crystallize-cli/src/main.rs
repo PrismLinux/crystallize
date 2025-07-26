@@ -60,7 +60,10 @@ fn main() {
       nvidia::install_nvidia();
     }
     Command::Config { config } => {
-      config::read_config(config);
+      if let Err(e) = config::read_config(config) {
+        eprintln!("Error reading config: {e}");
+        std::process::exit(1);
+      }
     }
     Command::Desktops { desktop } => {
       desktops::install_desktop_setup(desktop);

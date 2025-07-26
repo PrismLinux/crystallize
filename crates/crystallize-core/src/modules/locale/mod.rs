@@ -23,7 +23,7 @@ pub fn set_locale(locale: String) {
     files::append_file("/mnt/etc/locale.gen", "en_US.UTF-8 UTF-8"),
     "add en_US.UTF-8 UTF-8 to locale.gen",
   );
-  files::create_file("/mnt/etc/locale.conf");
+  let _ = files::create_file("/mnt/etc/locale.conf");
   files_eval(
     files::append_file("/mnt/etc/locale.conf", "LANG=en_US.UTF-8"),
     "edit locale.conf",
