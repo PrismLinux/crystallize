@@ -38,10 +38,6 @@ pub(super) fn kde() {
     "konsole",
     "plasma-browser-integration",
     "kde-gtk-config",
-    "pipewire",
-    "pipewire-pulse",
-    "pipewire-alsa",
-    "pipewire-jack",
     "wireplumber",
     "sddm",
   ]);
@@ -53,9 +49,6 @@ pub(super) fn cinnamon() {
     "xorg",
     "cinnamon",
     "pipewire",
-    "pipewire-pulse",
-    "pipewire-alsa",
-    "pipewire-jack",
     "wireplumber",
     "lightdm",
     "lightdm-gtk-greeter",
@@ -75,14 +68,6 @@ pub(super) fn cinnamon() {
 }
 
 pub(super) fn gnome() {
-  install(vec![
-    "gnome",
-    "pipewire",
-    "pipewire-pulse",
-    "pipewire-alsa",
-    "pipewire-jack",
-    "wireplumber",
-    "gdm",
-  ]);
+  install(vec!["gnome", "pipewire", "wireplumber", "gdm"]);
   enable_service("gdm", "Enabling gdm");
 }
