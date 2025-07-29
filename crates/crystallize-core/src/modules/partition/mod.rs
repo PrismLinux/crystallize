@@ -8,7 +8,7 @@ use crate::{
     exec::exec,
     exec_eval,
     files::{self, create_directory},
-    files_eval, install,
+    files_eval,
   },
 };
 
@@ -25,16 +25,40 @@ pub fn fmt_mount(mountpoint: &str, filesystem: &str, blockdevice: &str) {
       vec![String::from("-F32"), String::from(blockdevice)],
     ),
     "btrfs" => {
-      install::install(vec!["btrfs-progs", "grub-btrfs"]);
+      log::info!("Installing btrfs-progs on host system");
+      let install_result = exec(
+        "pacman",
+        vec![
+          String::from("-S"),
+          String::from("--noconfirm"),
+          String::from("--needed"),
+          String::from("btrfs-progs"),
+        ],
+      );
+
+      exec_eval(install_result, "Install btrfs-progs on host system");
       (
         "mkfs.btrfs",
         vec![String::from("-f"), String::from(blockdevice)],
       )
     }
-    "xfs" => (
-      "mkfs.xfs",
-      vec![String::from("-f"), String::from(blockdevice)],
-    ),
+    "xfs" => {
+      log::info!("Installing xfsprogs on host system");
+      let install_result = exec(
+        "pacman",
+        vec![
+          String::from("-S"),
+          String::from("--noconfirm"),
+          String::from("--needed"),
+          String::from("xfsprogs"),
+        ],
+      );
+      exec_eval(install_result, "Install xfsprogs on host system");
+      (
+        "mkfs.xfs",
+        vec![String::from("-f"), String::from(blockdevice)],
+      )
+    }
     "noformat" | "don't format" => {
       log::debug!("Not formatting {blockdevice}");
       return;
