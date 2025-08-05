@@ -116,7 +116,7 @@ pub fn partition(
           &partition.filesystem,
           &partition.blockdevice,
         );
-        if &partition.mountpoint == "/boot/efi" {
+        if &partition.mountpoint == "/boot" {
           exec_eval(
             exec(
               "parted",
@@ -129,7 +129,7 @@ pub fn partition(
                 String::from("on"),
               ],
             ),
-            "set EFI partition as ESP",
+            "set boot partition as ESP",
           );
         }
       }
@@ -138,14 +138,7 @@ pub fn partition(
 }
 
 fn cleanup_mounts() {
-  let mount_points = vec![
-    "/mnt/boot/efi",
-    "/mnt/boot",
-    "/mnt/dev",
-    "/mnt/proc",
-    "/mnt/sys",
-    "/mnt",
-  ];
+  let mount_points = vec!["/mnt/boot", "/mnt/dev", "/mnt/proc", "/mnt/sys", "/mnt"];
 
   for mount_point in mount_points {
     let _ = exec("umount", vec![String::from(mount_point)]);
@@ -182,7 +175,7 @@ fn partition_with_efi(device: &Path) {
         String::from("300"),
       ],
     ),
-    "create EFI partition",
+    "create boot partition",
   );
   exec_eval(
     exec(
@@ -196,7 +189,7 @@ fn partition_with_efi(device: &Path) {
         String::from("on"),
       ],
     ),
-    "set EFI partition as ESP",
+    "set boot partition as ESP",
   );
   exec_eval(
     exec(
@@ -238,11 +231,7 @@ fn part_nvme(device: &Path, efi: bool) {
     );
     mount(format!("{device}p2").as_str(), "/mnt", "");
     files_eval(files::create_directory("/mnt/boot"), "create /mnt/boot");
-    files_eval(
-      files::create_directory("/mnt/boot/efi"),
-      "create /mnt/boot/efi",
-    );
-    mount(format!("{device}p1").as_str(), "/mnt/boot/efi", "");
+    mount(format!("{device}p1").as_str(), "/mnt/boot", "");
     exec_eval(
       exec(
         "parted",
@@ -255,7 +244,7 @@ fn part_nvme(device: &Path, efi: bool) {
           String::from("on"),
         ],
       ),
-      "set EFI partition as ESP",
+      "set boot partition as ESP",
     );
   } else if !efi {
     let _ = exec("umount", vec![format!("{}p1", device)]);
@@ -306,11 +295,7 @@ fn part_disk(device: &Path, efi: bool) {
     );
     mount(format!("{device}2").as_str(), "/mnt", "");
     files_eval(files::create_directory("/mnt/boot"), "create /mnt/boot");
-    files_eval(
-      files::create_directory("/mnt/boot/efi"),
-      "create /mnt/boot/efi",
-    );
-    mount(format!("{device}1").as_str(), "/mnt/boot/efi", "");
+    mount(format!("{device}1").as_str(), "/mnt/boot", "");
     exec_eval(
       exec(
         "parted",
@@ -323,7 +308,7 @@ fn part_disk(device: &Path, efi: bool) {
           String::from("on"),
         ],
       ),
-      "set EFI partition as ESP",
+      "set boot partition as ESP",
     );
   } else if !efi {
     let _ = exec("umount", vec![format!("{}1", device)]);
