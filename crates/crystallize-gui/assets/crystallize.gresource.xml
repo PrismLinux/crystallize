@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<gresources> 
+<gresources>
   <gresource prefix="/org/crystalnetwork/crystallize/">
     <file preprocess="xml-stripblanks">window.ui</file>
     <file>style.css</file>
@@ -8,5 +8,7 @@
 
   <gresource prefix="/org/crystalnetwork/crystallize/ui/">
     <file preprocess="xml-stripblanks">welcome_screen.ui</file>
+    <file preprocess="xml-stripblanks">locale_screen.ui</file>
+    <file preprocess="xml-stripblanks">locale/locale_dialog.ui</file>
   </gresource>
 </gresources>

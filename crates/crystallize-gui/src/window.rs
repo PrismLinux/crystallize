@@ -1,9 +1,10 @@
 use adw::prelude::AdwDialogExt;
 use adw::subclass::prelude::*;
 use gtk::prelude::*;
-use gtk::{gio, glib, CompositeTemplate};
+use gtk::{CompositeTemplate, gio, glib};
 use std::cell::RefCell;
 
+use crate::modules::locale::LocaleScreen;
 use crate::modules::welcome::WelcomeScreen;
 
 mod imp {
@@ -115,8 +116,12 @@ impl CrystallizeWindow {
 
     imp.carousel.append(&welcome_screen);
 
+    let locale_screen = LocaleScreen::new();
+    imp.carousel.append(&locale_screen);
+
     let mut pages = imp.pages.borrow_mut();
     pages.push(welcome_screen.upcast());
+    pages.push(locale_screen.upcast());
     drop(pages);
 
     self.update_navigation_buttons();
@@ -162,17 +167,10 @@ impl CrystallizeWindow {
     // Derive the visibility states
     let is_first_page = current_page == 0;
     let is_last_page = current_page == pages_len.saturating_sub(1);
-    let show_navigation = !is_first_page && !is_last_page;
 
-    {
-      imp.back_button.set_visible(!is_first_page);
-    }
-    {
-      imp.next_button.set_visible(!is_last_page);
-    }
-    {
-      imp.revealer.set_reveal_child(show_navigation);
-    }
+    imp.back_button.set_visible(!is_first_page);
+    imp.next_button.set_visible(!is_last_page);
+    imp.revealer.set_reveal_child(!is_first_page);
   }
 
   pub fn setup_page_valid(&self, valid: bool) {
