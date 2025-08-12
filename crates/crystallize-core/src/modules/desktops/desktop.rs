@@ -71,6 +71,7 @@ pub(super) fn gnome() {
     "gnome-browser-connector",
     "gnome-tweaks",
     "nautilus",
+    "loupe",
     "gnome-control-center",
     "gnome-console",
     "gdm",
