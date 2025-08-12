@@ -1,4 +1,4 @@
-use crate::utils::{files, files_eval, install::install};
+use crate::utils::{exec::exec_chroot, exec_eval, files, files_eval, install::install};
 
 use super::services::enable_service;
 
@@ -7,12 +7,11 @@ pub(super) fn packages() {
     "pipewire",
     "pipewire-pulse",
     "pipewire-alsa",
+    "wireplumber",
     "bluez",
     "bluez-cups",
     "cups",
     "cups-pdf",
-    "packagekit-qt6",
-    "gnome-packagekit",
     "xdg-user-dirs",
     "zen-browser",
   ]);
@@ -38,7 +37,6 @@ pub(super) fn kde() {
     "konsole",
     "plasma-browser-integration",
     "kde-gtk-config",
-    "wireplumber",
     "sddm",
   ]);
   enable_service("sddm", "Enable sddm");
@@ -48,8 +46,6 @@ pub(super) fn cinnamon() {
   install(vec![
     "xorg",
     "cinnamon",
-    "pipewire",
-    "wireplumber",
     "lightdm",
     "lightdm-gtk-greeter",
     "lightdm-gtk-greeter-settings",
@@ -68,6 +64,30 @@ pub(super) fn cinnamon() {
 }
 
 pub(super) fn gnome() {
-  install(vec!["gnome", "pipewire", "wireplumber", "gdm"]);
+  install(vec![
+    "gnome-shell",
+    "gnome-shell-extensions",
+    "gnome-shell-extension-appindicator",
+    "gnome-browser-connector",
+    "gnome-tweaks",
+    "nautilus",
+    "gnome-control-center",
+    "gnome-console",
+    "gdm",
+  ]);
+
+  // Enable extentions
+  let extensions = vec!["appindicatorsupport@rgcjonas.gmail.com"];
+
+  for extension in extensions {
+    exec_eval(
+      exec_chroot(
+        "gnome-extensions enable",
+        vec![String::from(extension), String::from("--quiet")],
+      ),
+      "",
+    );
+  }
+
   enable_service("gdm", "Enabling gdm");
 }
