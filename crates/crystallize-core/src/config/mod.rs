@@ -351,7 +351,6 @@ impl Config {
       "/mnt/dev",
       "/mnt/proc",
       "/mnt/sys",
-      "/mnt/boot/efi",
       "/mnt/boot",
     ];
 

@@ -6,7 +6,6 @@ use tokio::time::Duration;
 
 use crate::utils::networks::check_internet_connection_async;
 
-
 mod imp {
   use super::*;
 
@@ -65,7 +64,12 @@ impl WelcomeScreen {
     F: Fn() + 'static,
   {
     let imp = self.imp();
+    let weak_self = glib::object::WeakRef::new();
+    weak_self.set(Some(self));
     imp.next_button.connect_clicked(move |_| {
+      if let Some(this) = weak_self.upgrade() {
+        this.stop_internet_check();
+      }
       callback();
     });
   }

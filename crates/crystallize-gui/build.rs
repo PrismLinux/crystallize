@@ -6,7 +6,7 @@ fn main() {
   print!("cargo:rerun-in-changed=assets/icons");
 
   compile_resources(
-    &["assets", "assets/ui", "assets/icons"],
+    &["assets", "assets/ui", "assets/ui/locale", "assets/icons"],
     "assets/crystallize.gresource.xml",
     "crystallize.gresource",
   );
