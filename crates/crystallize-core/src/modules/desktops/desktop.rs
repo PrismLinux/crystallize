@@ -1,4 +1,4 @@
-use crate::utils::{exec::exec_chroot, exec_eval, files, files_eval, install::install};
+use crate::utils::{files, files_eval, install::install};
 
 use super::services::enable_service;
 
@@ -69,6 +69,8 @@ pub(super) fn gnome() {
     "gnome-shell-extensions",
     "gnome-shell-extension-appindicator",
     "gnome-browser-connector",
+    "gnome-backgrounds",
+    "gnome-system-monitor",
     "gnome-tweaks",
     "nautilus",
     "loupe",
@@ -76,19 +78,6 @@ pub(super) fn gnome() {
     "gnome-console",
     "gdm",
   ]);
-
-  // Enable extentions
-  let extensions = vec!["appindicatorsupport@rgcjonas.gmail.com"];
-
-  for extension in extensions {
-    exec_eval(
-      exec_chroot(
-        "gnome-extensions enable",
-        vec![String::from(extension), String::from("--quiet")],
-      ),
-      "",
-    );
-  }
 
   enable_service("gdm", "Enabling gdm");
 }
