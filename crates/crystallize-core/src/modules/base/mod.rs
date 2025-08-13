@@ -30,13 +30,11 @@ const BASE_PACKAGES: &[&str] = &[
   // Base Prism
   "about",
   "prism",
-  "prismlinux-mirrorlist",
-  "prismlinux-hooks",
+  "prismlinux",
   "prismlinux-themes-fish",
   // Extras
   "fastfetch",
   "base-devel",
-  "wireplumber",
   "ttf-liberation",
   "dnsmasq",
   "bash",
