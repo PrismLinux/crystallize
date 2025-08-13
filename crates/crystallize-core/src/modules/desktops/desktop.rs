@@ -19,24 +19,10 @@ pub(super) fn packages() {
 
 pub(super) fn kde() {
   install(vec![
-    "plasma-desktop",
-    "plasma-workspace",
-    "plasma-pa",
-    "plasma-nm",
-    "kinfocenter",
-    "ark",
-    "spectacle",
-    "mpv",
-    "powerdevil",
-    "plasma-firewall",
-    "skanpage",
-    "kio-admin",
-    "sddm-kcm",
-    "kwalletmanager",
-    "plasma-systemmonitor",
+    "prismlinux-kde-settings",
     "konsole",
-    "plasma-browser-integration",
-    "kde-gtk-config",
+    "plasma-systemmonitor",
+    "dolphin",
     "sddm",
   ]);
   enable_service("sddm", "Enable sddm");
@@ -65,17 +51,9 @@ pub(super) fn cinnamon() {
 
 pub(super) fn gnome() {
   install(vec![
-    "gnome-shell",
-    "gnome-shell-extensions",
-    "gnome-shell-extension-appindicator",
-    "gnome-browser-connector",
-    "gnome-backgrounds",
-    "gnome-system-monitor",
-    "gnome-tweaks",
+    "prismlinux-gnome-settings",
     "nautilus",
     "loupe",
-    "gnome-control-center",
-    "gnome-console",
     "gdm",
   ]);
 
