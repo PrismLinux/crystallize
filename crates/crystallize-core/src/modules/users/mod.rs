@@ -14,18 +14,14 @@ pub fn new_user(username: &str, hasroot: bool, password: &str, do_hash_pass: boo
   }
   let shell_to_install = match shell {
     "bash" => "bash",
-    "csh" => "tcsh",
     "fish" => "fish",
-    "tcsh" => "tcsh",
     "zsh" => "zsh",
     &_ => "bash",
   };
   install::install(vec![shell_to_install]);
   let shell_path = match shell {
     "bash" => "/bin/bash",
-    "csh" => "/usr/bin/csh",
     "fish" => "/usr/bin/fish",
-    "tcsh" => "/usr/bin/tcsh",
     "zsh" => "/usr/bin/zsh",
     &_ => "/usr/bin/bash",
   };
