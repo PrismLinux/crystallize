@@ -5,15 +5,15 @@ pub fn set_timezone(timezone: &str) {
     exec_chroot(
       "ln",
       vec![
-        "-sf".to_string(),
+        String::from("-sf"),
         format!("/usr/share/zoneinfo/{}", timezone),
-        "/etc/localtime".to_string(),
+        String::from("/etc/localtime"),
       ],
     ),
     "Set timezone",
   );
   exec_eval(
-    exec_chroot("hwclock", vec!["--systohc".to_string()]),
+    exec_chroot("hwclock", vec![String::from("--systohc")]),
     "Set system clock",
   );
 }
@@ -62,14 +62,14 @@ pub fn set_keyboard(keyboard: &str) {
   exec_eval(
     exec_chroot(
       "localectl",
-      vec!["set-x11-keymap".to_string(), keyboard.to_string()],
+      vec![String::from("set-x11-keymap"), String::from(keyboard)],
     ),
     "Set x11 keymap",
   );
   exec_eval(
     exec_chroot(
       "localectl",
-      vec!["set-keymap".to_string(), keyboard.to_string()],
+      vec![String::from("set-keymap"), String::from(keyboard)],
     ),
     "Set global keymap",
   );
