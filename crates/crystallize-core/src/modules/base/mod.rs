@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::warn;
 pub mod grub;
 pub mod nvidia;
@@ -57,7 +57,7 @@ const BASE_PACKAGES: &[&str] = &[
   "xf86-video-intel",
   "xf86-video-nouveau",
   "xf86-video-vesa",
-  "mesa",
+  "mesa-tkg-git",
   "vulkan-intel",
   "vulkan-radeon",
   "vulkan-icd-loader",

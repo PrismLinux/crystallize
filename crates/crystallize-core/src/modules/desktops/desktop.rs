@@ -51,9 +51,12 @@ pub(super) fn cinnamon() {
 
 pub(super) fn gnome() {
   install(vec![
+    "amberol",
+    "mpv",
     "prismlinux-gnome-settings",
     "nautilus",
     "loupe",
+    "gnome-system-monitor",
     "gdm",
   ]);
 
