@@ -219,7 +219,7 @@ pub struct NewUserArgs {
   /// from the terminal history.
   pub password: String,
 
-  /// The shell to use for the user. The current options are bash, csh, fish, tcsh, and zsh.
+  /// The shell to use for the user. The current options are bash, fish, and zsh.
   /// If a shell is not specified or unknown, it defaults to fish.
   pub shell: String,
 }
