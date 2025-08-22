@@ -79,15 +79,17 @@ fn install_fallback_efi_bootloader(efi_str: &str) {
 /// Set default bootentry
 fn set_default_boot_entry() {
   exec_eval(
-        exec_chroot(
-            "sh",
-            vec![
-                String::from("-c"),
-                String::from("efibootmgr | grep 'PrismLinux' | head -1 | cut -c5-8 | xargs -I {} efibootmgr --bootorder {}"),
-            ],
+    exec_chroot(
+      "sh",
+      vec![
+        String::from("-c"),
+        String::from(
+          "efibootmgr | grep 'PrismLinux' | head -1 | cut -c5-8 | xargs -I {} efibootmgr --bootorder {}",
         ),
-        "Set default boot entry",
-    );
+      ],
+    ),
+    "Set default boot entry",
+  );
 }
 
 /// Install Legacy GRUB bootloader
