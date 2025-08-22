@@ -16,10 +16,10 @@ pub(super) fn packages() {
 pub(super) fn kde() {
   install(vec![
     "prismlinux-kde-settings",
-    "konsole",
-    "plasma-systemmonitor",
-    "dolphin",
     "sddm",
+    "konsole",
+    "dolphin",
+    "plasma-systemmonitor",
   ]);
   enable_service("sddm", "Enable sddm");
 }
@@ -47,10 +47,10 @@ pub(super) fn cinnamon() {
 
 pub(super) fn gnome() {
   install(vec![
-    "amberol",
-    "mpv",
     "prismlinux-gnome-settings",
     "nautilus",
+    "amberol",
+    "mpv",
     "loupe",
     "gnome-system-monitor",
     "gdm",
