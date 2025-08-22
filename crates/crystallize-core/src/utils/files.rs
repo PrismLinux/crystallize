@@ -1,3 +1,5 @@
+use regex::Regex;
+
 use crate::utils::crash;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, prelude::*};
@@ -123,16 +125,29 @@ pub fn sed_file(path: &str, find: &str, replace: &str) -> std::io::Result<()> {
 }
 
 /// Replace text in a file using regex
-pub fn sed_file_regex(path: &str, pattern: &str, replace: &str) -> std::io::Result<()> {
+pub fn sed_file_regex(
+  path: &str,
+  pattern: &str,
+  replace: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
   log::info!("Replacing pattern '{pattern}' with '{replace}' in file {path}");
 
   let contents = fs::read_to_string(path)?;
 
-  // For now, we'll use simple string replacement
-  // In a real implementation, you'd want to use the `regex` crate
-  let new_contents = contents.replace(pattern, replace);
+  // Compile the regex pattern
+  let re = Regex::new(pattern)?;
 
-  fs::write(path, new_contents)?;
+  // Perform the replacement
+  let new_contents = re.replace_all(&contents, replace);
+
+  // Only write if there were changes
+  if new_contents != contents {
+    fs::write(path, new_contents.as_ref())?;
+    log::info!("File updated successfully");
+  } else {
+    log::info!("No matches found, file unchanged");
+  }
+
   Ok(())
 }
 
