@@ -15,19 +15,6 @@ fn main() {
   logging::init(opt.verbose.into());
 
   match opt.command {
-    Command::Partition(args) => {
-      let mut partitions = args.partitions;
-      partition::partition(args.device, args.mode, args.efi, &mut partitions);
-    }
-    Command::SetupKeyring => {
-      base::setup_archlinux_keyring().unwrap();
-    }
-    Command::InstallBase(args) => {
-      base::install_base_packages(args.kernel);
-    }
-    Command::GenFstab => {
-      base::genfstab();
-    }
     Command::Bootloader { subcommand } => match subcommand {
       BootloaderSubcommand::GrubEfi { efidir } => {
         grub::install_bootloader_efi(efidir);
@@ -36,6 +23,27 @@ fn main() {
         grub::install_bootloader_legacy(device);
       }
     },
+    Command::Config { config } => {
+      if let Err(e) = config::read_config(config) {
+        eprintln!("Error reading config: {e}");
+        std::process::exit(1);
+      }
+    }
+    Command::CopyLive => {
+      base::copy_live_config();
+    }
+    Command::Desktops { desktop } => {
+      desktops::install_desktop_setup(desktop);
+    }
+    Command::Flatpak => {
+      base::install_flatpak();
+    }
+    Command::GenFstab => {
+      base::genfstab();
+    }
+    Command::InstallBase(args) => {
+      base::install_base_packages(args.kernel);
+    }
     Command::Locale(args) => {
       locale::set_locale(args.locales.join(" "));
       locale::set_keyboard(&args.keyboard);
@@ -50,23 +58,18 @@ fn main() {
       }
       network::set_hostname(&args.hostname);
     }
-    Command::Zram { size } => {
-      base::install_zram(size);
-    }
-    Command::CopyLive => {
-      base::copy_live_config();
+    Command::Nix => {
+      base::install_homemgr();
     }
     Command::Nvidia => {
       nvidia::install_nvidia();
     }
-    Command::Config { config } => {
-      if let Err(e) = config::read_config(config) {
-        eprintln!("Error reading config: {e}");
-        std::process::exit(1);
-      }
+    Command::Partition(args) => {
+      let mut partitions = args.partitions;
+      partition::partition(args.device, args.mode, args.efi, &mut partitions);
     }
-    Command::Desktops { desktop } => {
-      desktops::install_desktop_setup(desktop);
+    Command::SetupKeyring => {
+      base::setup_archlinux_keyring().unwrap();
     }
     Command::Users { subcommand } => match subcommand {
       UsersSubcommand::NewUser(args) => {
@@ -82,11 +85,8 @@ fn main() {
         users::root_pass(&password);
       }
     },
-    Command::Flatpak => {
-      base::install_flatpak();
-    }
-    Command::Nix => {
-      base::install_homemgr();
+    Command::Zram { size } => {
+      base::install_zram(size);
     }
   }
 }

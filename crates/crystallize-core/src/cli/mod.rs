@@ -14,28 +14,43 @@ pub struct Opt {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
-  /// Partition the install destination
-  #[clap(name = "partition")]
-  Partition(PartitionArgs),
-
-  /// Install base packages, optionally define a different kernel
-  #[clap(name = "install-base")]
-  InstallBase(InstallBaseArgs),
-
-  /// Setup Arch Linux keyring
-  #[clap(name = "setup-keyring")]
-  SetupKeyring,
-
-  /// Generate fstab file for mounting partitions
-  #[clap(name = "genfstab")]
-  GenFstab,
-
   /// Install the bootloader
   #[clap(name = "bootloader")]
   Bootloader {
     #[clap(subcommand)]
     subcommand: BootloaderSubcommand,
   },
+
+  /// Read Crystallize installation config
+  #[clap(name = "config")]
+  Config {
+    /// The config file to read
+    config: PathBuf,
+  },
+
+  /// Copy Live config
+  #[clap(name = "copy-live-config")]
+  CopyLive,
+
+  /// Install a graphical desktop
+  #[clap(name = "desktops")]
+  Desktops {
+    /// The desktop setup to use
+    #[clap(value_enum)]
+    desktop: DesktopSetup,
+  },
+
+  /// Install Flatpak and enable FlatHub
+  #[clap(name = "flatpak")]
+  Flatpak,
+
+  /// Generate fstab file for mounting partitions
+  #[clap(name = "genfstab")]
+  GenFstab,
+
+  /// Install base packages, optionally define a different kernel
+  #[clap(name = "install-base")]
+  InstallBase(InstallBaseArgs),
 
   /// Set locale
   #[clap(name = "locale")]
@@ -45,19 +60,21 @@ pub enum Command {
   #[clap(name = "networking")]
   Networking(NetworkingArgs),
 
-  /// Set up zram
-  #[clap(name = "zram")]
-  Zram {
-    #[clap(value_parser)]
-    size: u64,
-  },
-  /// Copy Live config
-  #[clap(name = "copy-live-config")]
-  CopyLive,
+  /// Install the Nix package manager
+  #[clap(name = "nix")]
+  Nix,
 
   /// Install and setup Nvidia drivers
   #[clap(name = "nvidia")]
   Nvidia,
+
+  /// Partition the install destination
+  #[clap(name = "partition")]
+  Partition(PartitionArgs),
+
+  /// Setup Arch Linux keyring
+  #[clap(name = "setup-keyring")]
+  SetupKeyring,
 
   /// Configure users and passwords
   #[clap(name = "users")]
@@ -66,27 +83,11 @@ pub enum Command {
     subcommand: UsersSubcommand,
   },
 
-  /// Install the Nix package manager
-  #[clap(name = "nix")]
-  Nix,
-
-  /// Install Flatpak and enable FlatHub
-  #[clap(name = "flatpak")]
-  Flatpak,
-
-  /// Read Crystallize installation config
-  #[clap(name = "config")]
-  Config {
-    /// The config file to read
-    config: PathBuf,
-  },
-
-  /// Install a graphical desktop
-  #[clap(name = "desktops")]
-  Desktops {
-    /// The desktop setup to use
-    #[clap(value_enum)]
-    desktop: DesktopSetup,
+  /// Set up zram
+  #[clap(name = "zram")]
+  Zram {
+    #[clap(value_parser)]
+    size: u64,
   },
 }
 
