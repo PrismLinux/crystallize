@@ -65,6 +65,7 @@ impl FilesystemType {
   fn required_packages(&self) -> Vec<&'static str> {
     match self {
       Self::Ext4 | Self::Fat32 => vec![],
+      // TODO: Add fix for installing btrfs and xfs
       Self::Btrfs => vec!["btrfs-progs"],
       Self::Xfs => vec!["xfsprogs"],
       Self::NoFormat => vec![],
