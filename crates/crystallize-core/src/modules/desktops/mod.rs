@@ -5,8 +5,8 @@ mod services;
 
 pub fn install_desktop_setup(desktop_setup: DesktopSetup) {
   log::debug!("Installing {desktop_setup:?}");
-  services::ufw();
   services::networkmanager();
+  services::ufw();
   if desktop_setup != DesktopSetup::None {
     desktop::packages();
     services::bluetooth();
