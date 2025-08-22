@@ -10,7 +10,18 @@ pub(super) fn networkmanager() {
 }
 
 pub(super) fn bluetooth() {
+  install(vec!["bluez"]);
   enable_service("bluetooth", "Enable Bluetooth");
+}
+
+pub(super) fn cups() {
+  install(vec!["cups", "cups-pdf", "bluez-cups"]);
+  enable_service("cups", "Enable Cups");
+}
+
+pub(super) fn tuned_ppd() {
+  install(vec!["tuned-ppd", "tuned"]);
+  enable_service("tuned-ppd", "Enable Power Manager");
 }
 
 pub(super) fn ufw() {
@@ -45,15 +56,6 @@ pub(super) fn ufw() {
 
   // Enable service for autostart
   enable_service("ufw", "Enable UFW service for boot");
-}
-
-pub(super) fn cups() {
-  enable_service("cups", "Enable Cups");
-}
-
-pub(super) fn tuned_ppd() {
-  install(vec!["tuned-ppd", "tuned"]);
-  enable_service("tuned-ppd", "Enable Power Manager");
 }
 
 pub(super) fn enable_service(service: &str, logmsg: &str) {

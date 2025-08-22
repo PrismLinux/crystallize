@@ -5,13 +5,9 @@ use super::services::enable_service;
 pub(super) fn packages() {
   install(vec![
     "pipewire",
-    "pipewire-pulse",
     "pipewire-alsa",
+    "pipewire-pulse",
     "wireplumber",
-    "bluez",
-    "bluez-cups",
-    "cups",
-    "cups-pdf",
     "xdg-user-dirs",
     "zen-browser",
   ]);
@@ -30,14 +26,14 @@ pub(super) fn kde() {
 
 pub(super) fn cinnamon() {
   install(vec![
-    "xorg",
     "cinnamon",
     "lightdm",
+    "gnome-shell",
+    "metacity",
+    "gnome-console",
     "lightdm-gtk-greeter",
     "lightdm-gtk-greeter-settings",
-    "metacity",
-    "gnome-shell",
-    "gnome-terminal",
+    "xorg",
   ]);
   files_eval(
     files::append_file(
