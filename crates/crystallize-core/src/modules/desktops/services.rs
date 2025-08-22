@@ -15,10 +15,36 @@ pub(super) fn bluetooth() {
 
 pub(super) fn ufw() {
   install(vec!["ufw"]);
+
+  // Configure default rules
   exec_eval(
-    exec_chroot("ufw", vec![String::from("enable")]),
-    "Enable Firewall",
+    exec_chroot(
+      "ufw",
+      vec![
+        String::from("--force"),
+        String::from("default"),
+        String::from("deny"),
+        String::from("incoming"),
+      ],
+    ),
+    "Set UFW default deny incoming",
   );
+
+  exec_eval(
+    exec_chroot(
+      "ufw",
+      vec![
+        String::from("--force"),
+        String::from("default"),
+        String::from("allow"),
+        String::from("outgoing"),
+      ],
+    ),
+    "Set UFW default allow outgoing",
+  );
+
+  // Enable service for autostart
+  enable_service("ufw", "Enable UFW service for boot");
 }
 
 pub(super) fn cups() {
