@@ -7,6 +7,7 @@ pub(super) fn packages() {
     "pipewire",
     "pipewire-alsa",
     "pipewire-pulse",
+    "gst-plugin-pipewire",
     "wireplumber",
     "xdg-user-dirs",
     "zen-browser",
