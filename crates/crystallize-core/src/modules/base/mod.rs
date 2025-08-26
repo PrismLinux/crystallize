@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::warn;
 pub mod grub;
 pub mod nvidia;
@@ -10,7 +10,7 @@ use crate::utils::{
   install,
 };
 
-const SUPPORTED_KERNELS: &[&str] = &["linux-zen", "linux-lts", "linux-hardened"];
+const SUPPORTED_KERNELS: &[&str] = &["linux-cachyos", "linux-zen", "linux"];
 
 const BASE_PACKAGES: &[&str] = &[
   // Base Arch
@@ -77,11 +77,11 @@ pub fn install_base_packages(kernel: String) {
   }
 
   let kernel_pkg = match kernel.as_str() {
-    "" => "linux-zen",
+    "" => "linux",
     k if SUPPORTED_KERNELS.contains(&k) => k,
     k => {
-      warn!("Unknown kernel: {k}, using linux-zen instead");
-      "linux-zen"
+      warn!("Unknown kernel: {k}, using linux instead");
+      "linux"
     }
   };
 
