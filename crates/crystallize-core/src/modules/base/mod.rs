@@ -15,6 +15,7 @@ const SUPPORTED_KERNELS: &[&str] = &["linux-cachyos", "linux-zen", "linux"];
 const BASE_PACKAGES: &[&str] = &[
   // Base Arch
   "base",
+  "cachyos-ananicy-rules-git",
   "linux-firmware",
   "sof-firmware",
   "man-db",
@@ -33,8 +34,8 @@ const BASE_PACKAGES: &[&str] = &[
   "prismlinux",
   "prismlinux-themes-fish",
   // Extras
-  "fastfetch",
   "base-devel",
+  "fastfetch",
   "ttf-liberation",
   "dnsmasq",
   "bash",
