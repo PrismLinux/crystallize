@@ -55,7 +55,7 @@ pub(super) fn ufw() {
   );
 
   // Enable service for autostart
-  enable_service("ufw", "Enable UFW service for boot");
+  enable_service("ufw", "Enable UFW service");
 }
 
 pub(super) fn enable_service(service: &str, logmsg: &str) {
