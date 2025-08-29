@@ -67,7 +67,7 @@ fn install_fallback_efi_bootloader(efi_str: &str) {
       vec![
         String::from("--target=x86_64-efi"),
         format!("--efi-directory={}", efi_str),
-        String::from("--bootloader-id=BOOT"),
+        String::from("--bootloader-id=PrismLinux-fallback"),
         String::from("--removable"),
         String::from("--recheck"),
       ],
