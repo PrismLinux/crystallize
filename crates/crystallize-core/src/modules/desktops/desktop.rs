@@ -14,6 +14,12 @@ pub(super) fn packages() {
   ]);
 }
 
+pub(super) fn graphics() {
+  install(vec!["prismlinux-graphics"])
+}
+
+// -------------[Desktop]-------------
+
 pub(super) fn kde() {
   install(vec![
     "prismlinux-kde-settings",
@@ -28,13 +34,12 @@ pub(super) fn kde() {
 pub(super) fn cinnamon() {
   install(vec![
     "cinnamon",
-    "lightdm",
     "gnome-shell",
     "metacity",
     "gnome-console",
+    "lightdm",
     "lightdm-gtk-greeter",
     "lightdm-gtk-greeter-settings",
-    "xorg",
   ]);
   files_eval(
     files::append_file(

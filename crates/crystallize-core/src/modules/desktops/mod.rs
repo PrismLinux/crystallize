@@ -7,8 +7,12 @@ pub fn install_desktop_setup(desktop_setup: DesktopSetup) {
   log::debug!("Installing {desktop_setup:?}");
   services::networkmanager();
   services::ufw();
+
   if desktop_setup != DesktopSetup::None {
+    desktop::graphics();
     desktop::packages();
+
+    // Services
     services::bluetooth();
     services::cups();
     services::tuned_ppd()

@@ -53,15 +53,6 @@ const BASE_PACKAGES: &[&str] = &[
   "noto-fonts-cjk",
   "noto-fonts-extra",
   "ttf-nerd-fonts-symbols-common",
-  // Graphics
-  "xf86-video-amdgpu",
-  "xf86-video-intel",
-  "xf86-video-nouveau",
-  "xf86-video-vesa",
-  "mesa",
-  "vulkan-intel",
-  "vulkan-radeon",
-  "vulkan-icd-loader",
   // Repositories
   "archlinux-keyring",
   "archlinuxcn-keyring",
