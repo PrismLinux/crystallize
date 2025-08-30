@@ -1,6 +1,6 @@
 # Maintainer: CrystalNetwork Studio
 pkgname=crystallize-cli
-pkgver=0.2.9
+pkgver=0.3.0
 pkgrel=1
 pkgdesc="CLI version of Crystallize Installer"
 arch=('x86_64')
@@ -11,7 +11,7 @@ makedepends=('rust' 'cargo')
 depends=('arch-install-scripts' 'util-linux')
 
 build() {
-  cargo b -r
+  cargo b -r --locked
 }
 
 package() {
