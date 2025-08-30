@@ -2,20 +2,24 @@ use crate::utils::{files, files_eval, install::install};
 
 use super::services::enable_service;
 
+pub(super) fn graphics() {
+  install(vec!["prismlinux-graphics"])
+}
+
 pub(super) fn packages() {
   install(vec![
+    "about",
     "pipewire",
     "pipewire-alsa",
     "pipewire-pulse",
     "gst-plugin-pipewire",
     "wireplumber",
     "xdg-user-dirs",
-    "zen-browser",
+    "noto-fonts",
+    "noto-fonts-emoji",
+    "noto-fonts-cjk",
+    "noto-fonts-extra",
   ]);
-}
-
-pub(super) fn graphics() {
-  install(vec!["prismlinux-graphics"])
 }
 
 // -------------[Desktop]-------------
@@ -63,4 +67,9 @@ pub(super) fn gnome() {
   ]);
 
   enable_service("gdm", "Enabling gdm");
+}
+
+pub(super) fn hyprland() {
+  install(vec!["prismlinux-hyprland-settings"]);
+  enable_service("sddm", "Enable sddm");
 }

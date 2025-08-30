@@ -3,6 +3,7 @@ use crate::utils::{exec::exec_chroot, exec_eval, files::copy_dir, install::insta
 pub(super) fn networkmanager() {
   install(vec!["networkmanager"]);
   enable_service("NetworkManager", "Enable NetworkManager");
+
   let _ = copy_dir(
     "/etc/NetworkManager/system-connections/",
     "/mnt/etc/NetworkManager/system-connections/",

@@ -70,6 +70,8 @@ pub enum DesktopSetup {
   Kde,
   #[clap(name = "cinnamon")]
   Cinnamon,
+  #[clap(name = "hyprland")]
+  Hyprland,
   #[clap(name = "None/DIY")]
   None,
 }

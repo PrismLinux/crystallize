@@ -31,11 +31,6 @@ fn configure_grub_theme_and_config() {
   );
 }
 
-/// Install GRUB packages for EFI or Legacy systems
-fn install_grub_packages(packages: &[&str]) {
-  install::install(packages.to_vec());
-}
-
 /// Validate that the EFI directory exists
 fn validate_efi_directory(efi_path: &str) {
   if !std::path::Path::new(&format!("/mnt{efi_path}")).exists() {
@@ -109,7 +104,7 @@ fn install_legacy_grub(device: &str) {
 
 pub fn install_bootloader_efi(efidir: PathBuf) {
   // Install required packages
-  install_grub_packages(GRUB_PACKAGES);
+  install::install(GRUB_PACKAGES.to_vec());
 
   // Prepare EFI directory path
   let efidir = std::path::Path::new("/mnt").join(efidir);
@@ -132,7 +127,8 @@ pub fn install_bootloader_efi(efidir: PathBuf) {
 }
 
 pub fn install_bootloader_legacy(device: PathBuf) {
-  install_grub_packages(GRUB_LEGACY_PACKAGES);
+  // Install required packages
+  install::install(GRUB_LEGACY_PACKAGES.to_vec());
 
   // Validate device exists
   if !device.exists() {

@@ -245,7 +245,12 @@ impl Config {
     log::info!("Installing bootloader: {}", self.bootloader.r#type);
     log::info!("Bootloader location: {}", self.bootloader.location);
 
-    grub::install_bootloader_efi(PathBuf::from(&self.bootloader.location));
+    if self.bootloader.r#type == "grub-efi" {
+      grub::install_bootloader_efi(PathBuf::from(&self.bootloader.location));
+    } else if self.bootloader.r#type == "grub-legacy" {
+      grub::install_bootloader_legacy(PathBuf::from(&self.bootloader.location));
+    }
+
     Ok(())
   }
 
@@ -280,6 +285,7 @@ impl Config {
       "kde" | "plasma" => Some(DesktopSetup::Kde),
       "gnome" => Some(DesktopSetup::Gnome),
       "cinnamon" => Some(DesktopSetup::Cinnamon),
+      "hyprland" => Some(DesktopSetup::Hyprland),
       "none" => Some(DesktopSetup::None),
       _ => {
         log::warn!("Unknown desktop: {}, skipping", self.desktop);
