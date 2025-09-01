@@ -58,7 +58,7 @@ pub fn install_base_packages(kernel: String) {
   }
 
   let kernel_pkg = match kernel.as_str() {
-    "" => "linux",
+    "" => "linux-cachyos",
     k if SUPPORTED_KERNELS.contains(&k) => k,
     k => {
       warn!("Unknown kernel: {k}, using linux-cachyos instead");
