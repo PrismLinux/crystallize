@@ -1,11 +1,16 @@
-use crate::utils::exec::exec_chroot;
+use crate::utils::exec::{exec, exec_chroot};
 use crate::utils::exec_eval;
-use std::process::Command;
 
 /// Install packages using pacstrap
 pub fn install_base(pkgs: Vec<&str>) {
+  let pkg_args: Vec<String> = pkgs.iter().map(|&s| s.to_string()).collect();
+
   exec_eval(
-    Command::new("pacstrap").arg("/mnt").args(&pkgs).status(),
+    exec("pacstrap", {
+      let mut args = vec!["/mnt".to_string()];
+      args.extend(pkg_args);
+      args
+    }),
     format!("Install base packages {}", pkgs.join(", ")).as_str(),
   );
 }
