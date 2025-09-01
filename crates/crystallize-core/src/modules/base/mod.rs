@@ -61,8 +61,8 @@ pub fn install_base_packages(kernel: String) {
     "" => "linux",
     k if SUPPORTED_KERNELS.contains(&k) => k,
     k => {
-      warn!("Unknown kernel: {k}, using linux instead");
-      "linux"
+      warn!("Unknown kernel: {k}, using linux-cachyos instead");
+      "linux-cachyos"
     }
   };
 
