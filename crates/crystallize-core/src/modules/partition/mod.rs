@@ -9,7 +9,7 @@ use crate::{
     exec_eval,
     files::{self, create_directory},
     files_eval,
-    install::install,
+    install::install_base,
   },
 };
 
@@ -65,7 +65,6 @@ impl FilesystemType {
   fn required_packages(&self) -> Vec<&'static str> {
     match self {
       Self::Ext4 | Self::Fat32 => vec![],
-      // TODO: Add fix for installing btrfs and xfs
       Self::Btrfs => vec!["btrfs-progs"],
       Self::Xfs => vec!["xfsprogs"],
       Self::NoFormat => vec![],
@@ -406,7 +405,7 @@ impl FilesystemFormatter {
         "Installing {} support packages on host system",
         fs_type.display_name()
       );
-      install(packages);
+      install_base(packages);
     }
   }
 
@@ -475,14 +474,14 @@ pub fn fmt_mount(mountpoint: &str, filesystem: &str, blockdevice: &str, efi: boo
     return;
   }
 
-  // Install required packages for filesystem support
-  FilesystemFormatter::install_filesystem_packages(&fs_type);
-
   // Format the partition
   FilesystemFormatter::format(blockdevice, &fs_type);
 
   // Ensure mount point exists
   MountManager::ensure_mountpoint_exists(mountpoint);
+
+  // Install required packages for filesystem support
+  FilesystemFormatter::install_filesystem_packages(&fs_type);
 
   // Mount the partition
   mount(blockdevice, mountpoint, "");
