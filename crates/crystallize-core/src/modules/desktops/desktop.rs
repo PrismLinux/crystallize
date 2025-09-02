@@ -12,6 +12,7 @@ pub(super) fn packages() {
     "pipewire",
     "pipewire-alsa",
     "pipewire-pulse",
+    "pipewire-jack"
     "gst-plugin-pipewire",
     "wireplumber",
     "xdg-user-dirs",
@@ -22,7 +23,7 @@ pub(super) fn packages() {
   ]);
 }
 
-// -------------[Desktop]-------------
+// -------------[DE]-------------
 
 pub(super) fn kde() {
   install(vec![
@@ -68,6 +69,8 @@ pub(super) fn gnome() {
 
   enable_service("gdm", "Enabling gdm");
 }
+
+// -------------[WM]-------------
 
 pub(super) fn hyprland() {
   install(vec!["prismlinux-hyprland-settings"]);

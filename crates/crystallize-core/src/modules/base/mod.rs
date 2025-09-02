@@ -25,7 +25,6 @@ const BASE_PACKAGES: &[&str] = &[
   "curl",
   "wget",
   "openssh",
-  "rate-mirrors",
   "iptables",
   "lsb-release",
   // Base Prism
