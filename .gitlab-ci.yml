@@ -5,73 +5,191 @@ stages:
 variables:
   GIT_STRATEGY: clone
   GIT_DEPTH: 0
+  PACKAGE_IMAGE: registry.gitlab.com/crystalnetwork-studio/dev-tooling/docker/pkgbuild-archlinux:latest
+  ARTIFACTS_DIR: "artifacts"
+  CCACHE_DIR: "/home/builder/.ccache"
+
+# Template for common package job configuration
+.package_job_template: &package_job_template
+  image:
+    name: $PACKAGE_IMAGE
+    entrypoint: [""]
+  before_script:
+    - mkdir -p $ARTIFACTS_DIR
+    - cd $CI_PROJECT_DIR
+  cache:
+    key: ccache-$CI_COMMIT_REF_SLUG
+    paths:
+      - .ccache/
+    policy: pull-push
+  artifacts:
+    expire_in: 1 week
+    when: always
+    paths:
+      - $ARTIFACTS_DIR/
 
 build_package:
+  <<: *package_job_template
   stage: build
-  image: registry.gitlab.com/crystalnetwork-studio/dev-tooling/docker/pkgbuild-archlinux:latest
-
   rules:
     - if: $CI_COMMIT_TAG
 
   script:
-    # GitLab CI clones the repository as the 'root' user.
-    # We need to give ownership to our 'builder' user, which exists in the image.
-    - sudo chown -R builder:builder .
+    # System updates must run as root
+    - sudo pacman -Sy --needed --noconfirm
 
-    # Install the package dependencies listed in the PKGBUILD file.
-    - sudo -u builder yay -S --noconfirm --needed $(source PKGBUILD && echo ${depends[@]} ${makedepends[@]})
+    - BUILD_DIR="/home/builder/build"
+    - BUILD_ARTIFACTS_DIR="/home/builder/artifacts"
 
-    # Build the package.
-    - sudo -u builder makepkg -fc --noconfirm
+    - echo "Setting up directories for builder user..."
+    - mkdir -p "$BUILD_DIR" "$BUILD_ARTIFACTS_DIR" "$CCACHE_DIR"
+    - chown -R 1000:1000 "$BUILD_DIR" "$BUILD_ARTIFACTS_DIR" "$CCACHE_DIR"
 
-    # Create a version file for the release stage.
+    - echo "Copying project source to build directory..."
+    - cp -r . "$BUILD_DIR/"
+    - chown -R 1000:1000 "$BUILD_DIR" # Ensure copied files are owned by builder
+    
+    - ln -sf "$CI_PROJECT_DIR/.ccache" "$CCACHE_DIR"
+    
     - |
-      source ./PKGBUILD
-      echo "VERSION=${pkgver}" > version.env
-      echo "PACKAGE_NAME=${pkgname}" >> version.env
-      echo "TAG_VERSION=${CI_COMMIT_TAG}" >> version.env
-      echo "BUILD_JOB_ID=${CI_JOB_ID}" >> version.env
+      sudo \
+        -u builder -H \
+        --preserve-env=CI_COMMIT_TAG,CI_JOB_ID \
+        bash -c "
+          set -ex
+          
+          # Define paths from the builder's perspective
+          BUILD_DIR='/home/builder/build'
+          ARTIFACTS_DIR='/home/builder/artifacts'
+
+          # Change to the new build directory
+          cd \"\${BUILD_DIR}\"
+
+          # Debug PKGBUILD parsing
+          echo 'Debugging PKGBUILD...'
+          pwd && ls -la
+          echo '=== PKGBUILD content ==='
+          head -20 PKGBUILD || echo 'PKGBUILD not found!'
+
+          # Install package dependencies
+          echo 'Installing package dependencies...'
+          builder deps
+          
+          # Build the package
+          echo 'Building package...'
+          builder build
+
+          # Generate version info into the temporary artifacts directory
+          echo 'Generating version info...'
+          builder version --output-file \"\${ARTIFACTS_DIR}/version.env\"
+           
+          # Validate the version.env file
+          echo 'Validating version.env file:';
+          cat \"\${ARTIFACTS_DIR}/version.env\";
+          echo 'Testing source of version.env:';
+          source \"\${ARTIFACTS_DIR}/version.env\" && echo 'version.env is valid';
+
+          # Collect build artifacts into the temporary artifacts directory
+          echo 'Collecting artifacts...'
+          builder artifacts --output-dir \"\${ARTIFACTS_DIR}\"
+        "
+    
+    - echo "Moving artifacts to the final location..."
+    - mv "$BUILD_ARTIFACTS_DIR"/* "$CI_PROJECT_DIR/$ARTIFACTS_DIR/"
+
+    # Validate version.env before using it
+    - echo "Validating version.env file:"
+    - cat "$ARTIFACTS_DIR/version.env"
+    - echo "Testing source of version.env:"
+    - source "$ARTIFACTS_DIR/version.env" && echo "version.env is valid"
+
+    # List the generated artifacts for logging purposes.
+    - echo 'Build artifacts:'
+    - ls -la $ARTIFACTS_DIR/
 
   artifacts:
     paths:
-      - "*.pkg.tar.zst"
-      - "version.env"
+      - $ARTIFACTS_DIR/
     expire_in: 1 week
     reports:
-      dotenv: version.env
+      dotenv: $ARTIFACTS_DIR/version.env
 
+# Create a GitLab release and attach the built package as an asset.
 release_job:
   stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:latest
   needs:
     - job: build_package
       artifacts: true
+  variables:
+    GIT_STRATEGY: none
   rules:
     - if: $CI_COMMIT_TAG
   script:
     - |
       set -e
-      source ./version.env
-
-      # Initialize an empty string to hold our arguments
-      ASSET_ARGS=""
-
-      # Loop through each package file using a standard glob
-      for PACKAGE_FILE in *.pkg.tar.zst; do
-        if [ -e "$PACKAGE_FILE" ]; then
-          echo "Preparing asset: ${PACKAGE_FILE}"
-          ASSET_ARGS="$ASSET_ARGS --assets-link '{\"name\":\"${PACKAGE_FILE}\",\"url\":\"${CI_PROJECT_URL}/-/jobs/${BUILD_JOB_ID}/artifacts/raw/${PACKAGE_FILE}\",\"link_type\":\"other\",\"filepath\":\"/${PACKAGE_FILE}\"}'"
-        fi
-      done
-
-      # Check if we actually found any assets
-      if [ -z "$ASSET_ARGS" ]; then
-        echo "No package files (*.pkg.tar.zst) found in artifacts!"
+      
+      # Validate version.env exists and is readable
+      if [[ ! -f "$ARTIFACTS_DIR/version.env" ]]; then
+        echo "ERROR: version.env not found!"
         exit 1
       fi
-
-      set -x
+      
+      echo "Contents of version.env:"
+      cat "$ARTIFACTS_DIR/version.env"
+      
+      # Source the version file with validation
+      echo "Sourcing version.env..."
+      source "$ARTIFACTS_DIR/version.env"
+      
+      # Validate required variables
+      if [[ -z "$FULL_VERSION" || -z "$PACKAGE_NAME" || -z "$ARCH" ]]; then
+        echo "ERROR: Missing required variables in version.env"
+        echo "FULL_VERSION: $FULL_VERSION"
+        echo "PACKAGE_NAME: $PACKAGE_NAME"
+        echo "ARCH: $ARCH"
+        exit 1
+      fi
+      
+      echo "Creating release for version: $FULL_VERSION"
+      
+      DESCRIPTION="## Package Information
+      
+      - **Package Name:** $PACKAGE_NAME
+      - **Version:** $FULL_VERSION  
+      - **Architecture:** $ARCH
+      - **Build Date:** $BUILD_DATE
+      - **Build Job:** [$BUILD_JOB_ID]($CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID)
+      
+      ## Files in this release"
+      
+      ASSET_ARGS=""
+      for file in "$ARTIFACTS_DIR"/*.pkg.tar.*; do
+        if [[ -f "$file" ]]; then
+          filename=$(basename "$file")
+          echo "Adding asset: $filename"
+          ASSET_ARGS="$ASSET_ARGS --assets-link '{\"name\":\"$filename\",\"url\":\"$CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID/artifacts/raw/$ARTIFACTS_DIR/$filename\",\"link_type\":\"package\",\"filepath\":\"/$filename\"}'"
+          DESCRIPTION="$DESCRIPTION
+      - 📦 [$filename]($CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID/artifacts/raw/$ARTIFACTS_DIR/$filename)"
+        fi
+      done
+      
+      for file in "$ARTIFACTS_DIR"/{PKGBUILD,*.log}; do
+        if [[ -f "$file" ]]; then
+          filename=$(basename "$file")
+          ASSET_ARGS="$ASSET_ARGS --assets-link '{\"name\":\"$filename\",\"url\":\"$CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID/artifacts/raw/$ARTIFACTS_DIR/$filename\",\"link_type\":\"other\",\"filepath\":\"/$filename\"}'"
+          DESCRIPTION="$DESCRIPTION
+      - 📄 [$filename]($CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID/artifacts/raw/$ARTIFACTS_DIR/$filename)"
+        fi
+      done
+      
+      if [[ -z "$ASSET_ARGS" ]]; then
+        echo "No package files found in artifacts!"
+        exit 1
+      fi
+      
       eval "release-cli create \
-        --name \"Release ${TAG_VERSION}\" \
-        --tag-name \"${TAG_VERSION}\" \
+        --name 'Release $TAG_VERSION' \
+        --tag-name '$CI_COMMIT_TAG' \
+        --description '$DESCRIPTION' \
         $ASSET_ARGS"
