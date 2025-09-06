@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::utils::{crash, exec::exec_chroot, exec_eval, files::append_file, files_eval, install};
+use crate::utils::{crash, exec::exec_chroot, exec_eval, files::sed_file, files_eval, install};
 
 const GRUB_PACKAGES: &[&str] = &[
   "prismlinux/grub",
@@ -18,8 +18,12 @@ const GRUB_DEFAULT_CONFIG: &str = "/mnt/etc/default/grub";
 /// Apply GRUB theme and generate config
 fn configure_grub_theme_and_config() {
   files_eval(
-    append_file(GRUB_DEFAULT_CONFIG, GRUB_THEME_CONFIG),
-    "enable PrismLinux Grub Theme",
+    sed_file(
+      GRUB_DEFAULT_CONFIG,
+      "#GRUB_THEME=\"/path/to/theme.txt\"",
+      GRUB_THEME_CONFIG,
+    ),
+    "Enable Grub Theme",
   );
 
   exec_eval(
