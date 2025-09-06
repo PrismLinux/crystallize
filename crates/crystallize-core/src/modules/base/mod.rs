@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use log::warn;
 pub mod grub;
 pub mod nvidia;
@@ -10,7 +10,7 @@ use crate::utils::{
   install,
 };
 
-const SUPPORTED_KERNELS: &[&str] = &["linux-cachyos", "linux-zen", "linux"];
+const SUPPORTED_KERNELS: &[&str] = &["linux-cachyos", "linux-tkg-bore", "linux-zen", "linux"];
 
 const BASE_PACKAGES: &[&str] = &[
   // Base Arch
@@ -32,6 +32,8 @@ const BASE_PACKAGES: &[&str] = &[
   "prismlinux",
   "prismlinux-themes-fish",
   // Extras
+  "btrfs-progs",
+  "xfsprogs",
   "ttf-liberation",
   "dnsmasq",
   "bash",
@@ -48,7 +50,7 @@ const BASE_PACKAGES: &[&str] = &[
   "chaotic-mirrorlist",
 ];
 
-pub fn install_base_packages(kernel: String) {
+pub fn install_base_packages(kernel: String) -> Result<(), Box<dyn std::error::Error>> {
   log::info!("Installing base packages to /mnt");
 
   // Ensure /mnt/etc exists
@@ -71,12 +73,14 @@ pub fn install_base_packages(kernel: String) {
   packages.push(kernel_pkg);
   packages.push(&headers);
 
-  install::install_base(packages);
+  install::install_base(packages)?;
 
   // Copy pacman configuration
   if let Err(e) = files::copy_file("/etc/pacman.conf", "/mnt/etc/pacman.conf") {
     log::error!("Failed to copy pacman.conf: {e}");
-  }
+  };
+
+  Ok(())
 }
 
 /// Update mirror keyring
@@ -161,15 +165,15 @@ pub fn copy_live_config() {
 }
 
 /// Using Zram
-pub fn install_zram(size: u64) {
+pub fn install_zram(size: u64) -> Result<(), Box<dyn std::error::Error>> {
   log::info!("Installing and configuring ZRAM");
 
-  install::install(vec!["zram-generator"]);
+  install::install(vec!["zram-generator"])?;
 
   // Ensure the systemd directory exists
   if let Err(e) = files::create_directory("/mnt/etc/systemd") {
     log::error!("Failed to create systemd directory: {e}");
-    return;
+    return Ok(());
   }
 
   let zram_config = if size == 0 {
@@ -180,20 +184,22 @@ pub fn install_zram(size: u64) {
 
   if let Err(e) = files::write_file("/mnt/etc/systemd/zram-generator.conf", zram_config) {
     log::error!("Failed to write zram config: {e}");
-    return;
+    return Ok(());
   }
 
   log::info!("ZRAM configuration complete");
+  Ok(())
 }
 
-pub fn install_homemgr() {
+pub fn install_homemgr() -> Result<(), Box<dyn std::error::Error>> {
   log::info!("Installing Nix package manager");
-  install::install(vec!["nix"]);
+  install::install(vec!["nix"])?;
+  Ok(())
 }
 
-pub fn install_flatpak() {
+pub fn install_flatpak() -> Result<(), Box<dyn std::error::Error>> {
   log::info!("Installing Flatpak");
-  install::install(vec!["flatpak"]);
+  install::install(vec!["flatpak"])?;
 
   exec_eval(
     exec_chroot(
@@ -207,4 +213,5 @@ pub fn install_flatpak() {
     ),
     "add flathub remote",
   );
+  Ok(())
 }

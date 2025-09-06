@@ -2,17 +2,18 @@ use crate::utils::{files, files_eval, install::install};
 
 use super::services::enable_service;
 
-pub(super) fn graphics() {
-  install(vec!["prismlinux-graphics"])
+pub(super) fn graphics() -> Result<(), Box<dyn std::error::Error>> {
+  install(vec!["prismlinux-graphics"])?;
+  Ok(())
 }
 
-pub(super) fn packages() {
+pub(super) fn packages() -> Result<(), Box<dyn std::error::Error>> {
   install(vec![
     "about",
     "pipewire",
     "pipewire-alsa",
     "pipewire-pulse",
-    "pipewire-jack"
+    "pipewire-jack",
     "gst-plugin-pipewire",
     "wireplumber",
     "xdg-user-dirs",
@@ -20,32 +21,34 @@ pub(super) fn packages() {
     "noto-fonts-emoji",
     "noto-fonts-cjk",
     "noto-fonts-extra",
-  ]);
+  ])?;
+  Ok(())
 }
 
 // -------------[DE]-------------
 
-pub(super) fn kde() {
+pub(super) fn kde() -> Result<(), Box<dyn std::error::Error>> {
   install(vec![
-    "prismlinux-kde-settings",
+    "prismlinux-plasma-settings",
     "sddm",
-    "konsole",
+    "rio",
     "dolphin",
     "plasma-systemmonitor",
-  ]);
+  ])?;
   enable_service("sddm", "Enable sddm");
+  Ok(())
 }
 
-pub(super) fn cinnamon() {
+pub(super) fn cinnamon() -> Result<(), Box<dyn std::error::Error>> {
   install(vec![
     "cinnamon",
-    "gnome-shell",
+    "rio",
     "metacity",
-    "gnome-console",
+    "gnome-shell",
     "lightdm",
     "lightdm-gtk-greeter",
     "lightdm-gtk-greeter-settings",
-  ]);
+  ])?;
   files_eval(
     files::append_file(
       "/mnt/etc/lightdm/lightdm.conf",
@@ -54,9 +57,10 @@ pub(super) fn cinnamon() {
     "Add lightdm greeter",
   );
   enable_service("lightdm", "Enabling LightDM");
+  Ok(())
 }
 
-pub(super) fn gnome() {
+pub(super) fn gnome() -> Result<(), Box<dyn std::error::Error>> {
   install(vec![
     "prismlinux-gnome-settings",
     "nautilus",
@@ -65,14 +69,16 @@ pub(super) fn gnome() {
     "loupe",
     "gnome-system-monitor",
     "gdm",
-  ]);
+  ])?;
 
   enable_service("gdm", "Enabling gdm");
+  Ok(())
 }
 
 // -------------[WM]-------------
 
-pub(super) fn hyprland() {
-  install(vec!["prismlinux-hyprland-settings"]);
+pub(super) fn hyprland() -> Result<(), Box<dyn std::error::Error>> {
+  install(vec!["prismlinux-hyprland-settings", "sddm"])?;
   enable_service("sddm", "Enable sddm");
+  Ok(())
 }

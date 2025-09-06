@@ -3,7 +3,13 @@ use std::process::Command;
 use crate::utils::{exec::exec_chroot, exec_eval, files, files_eval, install};
 
 /// Generate New user
-pub fn new_user(username: &str, hasroot: bool, password: &str, do_hash_pass: bool, shell: &str) {
+pub fn new_user(
+  username: &str,
+  hasroot: bool,
+  password: &str,
+  do_hash_pass: bool,
+  shell: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
   let shell: &str = shell;
   if do_hash_pass {
     let hashed_pass = &*hash_pass(password).stdout;
@@ -18,7 +24,7 @@ pub fn new_user(username: &str, hasroot: bool, password: &str, do_hash_pass: boo
     "zsh" => "zsh",
     &_ => "bash",
   };
-  install::install(vec![shell_to_install]);
+  install::install(vec![shell_to_install])?;
   let shell_path = match shell {
     "bash" => "/bin/bash",
     "fish" => "/usr/bin/fish",
@@ -76,7 +82,8 @@ pub fn new_user(username: &str, hasroot: bool, password: &str, do_hash_pass: boo
       ),
       format!("Populate AccountsService user file for {username}").as_str(),
     )
-  }
+  };
+  Ok(())
 }
 
 /// Hash password

@@ -111,14 +111,14 @@ impl Config {
     Ok(())
   }
 
-  fn install_base_system(&self) -> Result<()> {
+  fn install_base_system(&self) -> Result<(), Box<dyn std::error::Error>> {
     log::info!("Setting up base system...");
 
     // Ensure essential host system tools are available
     self.ensure_host_tools()?;
 
     // Install base packages first
-    base::install_base_packages(self.kernel.clone());
+    base::install_base_packages(self.kernel.clone())?;
 
     // Setup the chroot environment after base packages are installed
     self.prepare_chroot_environment()?;
@@ -131,11 +131,11 @@ impl Config {
 
     // Install additional components if requested
     if self.flatpak {
-      base::install_flatpak();
+      base::install_flatpak()?;
     }
 
     if self.nix {
-      base::install_homemgr();
+      base::install_homemgr()?;
     }
 
     Ok(())
@@ -241,14 +241,14 @@ impl Config {
     Ok(())
   }
 
-  fn setup_bootloader(&self) -> Result<()> {
+  fn setup_bootloader(&self) -> Result<(), Box<dyn std::error::Error>> {
     log::info!("Installing bootloader: {}", self.bootloader.r#type);
     log::info!("Bootloader location: {}", self.bootloader.location);
 
     if self.bootloader.r#type == "grub-efi" {
-      grub::install_bootloader_efi(PathBuf::from(&self.bootloader.location));
+      grub::install_bootloader_efi(PathBuf::from(&self.bootloader.location))?;
     } else if self.bootloader.r#type == "grub-legacy" {
-      grub::install_bootloader_legacy(PathBuf::from(&self.bootloader.location));
+      grub::install_bootloader_legacy(PathBuf::from(&self.bootloader.location))?;
     }
 
     Ok(())
@@ -278,7 +278,7 @@ impl Config {
     Ok(())
   }
 
-  fn install_desktop(&self) -> Result<()> {
+  fn install_desktop(&self) -> Result<(), Box<dyn std::error::Error>> {
     log::info!("Installing desktop: {}", self.desktop);
 
     let desktop_setup = match self.desktop.to_lowercase().as_str() {
@@ -294,18 +294,18 @@ impl Config {
     };
 
     if let Some(setup) = desktop_setup {
-      desktops::install_desktop_setup(setup);
+      desktops::install_desktop_setup(setup)?;
     }
     Ok(())
   }
 
-  fn create_users(&self) -> Result<()> {
+  fn create_users(&self) -> Result<(), Box<dyn std::error::Error>> {
     for user in &self.users {
       log::info!("Creating user: {}", user.name);
       log::debug!("User has root: {}", user.hasroot);
       log::debug!("User shell: {}", user.shell);
 
-      users::new_user(&user.name, user.hasroot, &user.password, false, &user.shell);
+      users::new_user(&user.name, user.hasroot, &user.password, false, &user.shell)?;
     }
 
     log::info!("Setting root password");
@@ -313,14 +313,14 @@ impl Config {
     Ok(())
   }
 
-  fn finalize_installation(&self) -> Result<()> {
+  fn finalize_installation(&self) -> Result<(), Box<dyn std::error::Error>> {
     log::info!("Finalizing installation...");
 
     base::copy_live_config();
 
     if self.nvidia {
       log::info!("Installing NVIDIA drivers");
-      nvidia::install_nvidia();
+      nvidia::install_nvidia()?;
     }
 
     // Setup ZRAM
@@ -330,13 +330,13 @@ impl Config {
       format!("{}MB", self.zram)
     };
     log::info!("Configuring ZRAM: {zram_info}");
-    base::install_zram(self.zram);
+    base::install_zram(self.zram)?;
 
     // Install extra packages
     if !self.extra_packages.is_empty() {
       log::info!("Installing extra packages: {:?}", self.extra_packages);
       let packages: Vec<&str> = self.extra_packages.iter().map(|s| s.as_str()).collect();
-      install::install(packages);
+      install::install(packages)?;
     }
 
     // Clean up mount points
@@ -391,39 +391,24 @@ impl Config {
   }
 }
 
-pub fn read_config(config_path: PathBuf) -> Result<()> {
+pub fn read_config(config_path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
   let config = Config::from_file(&config_path)?;
 
-  // Installation pipeline with better error handling
-  config
-    .setup_partitions()
-    .context("Failed to setup partitions")?;
+  config.setup_partitions()?;
 
-  config
-    .install_base_system()
-    .context("Failed to install base system")?;
+  config.install_base_system()?;
 
-  config
-    .setup_bootloader()
-    .context("Failed to setup bootloader")?;
+  config.setup_bootloader()?;
 
-  config
-    .configure_locale()
-    .context("Failed to configure locale")?;
+  config.configure_locale()?;
 
-  config
-    .setup_networking()
-    .context("Failed to setup networking")?;
+  config.setup_networking()?;
 
-  config
-    .install_desktop()
-    .context("Failed to install desktop")?;
+  config.install_desktop()?;
 
-  config.create_users().context("Failed to create users")?;
+  config.create_users()?;
 
-  config
-    .finalize_installation()
-    .context("Failed to finalize installation")?;
+  config.finalize_installation()?;
 
   log::info!("Installation completed successfully! You may reboot now.");
   Ok(())

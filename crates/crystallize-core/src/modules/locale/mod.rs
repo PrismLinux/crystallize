@@ -59,18 +59,17 @@ pub fn set_locale(locale: String) {
 }
 
 pub fn set_keyboard(keyboard: &str) {
-  exec_eval(
-    exec_chroot(
-      "localectl",
-      vec![String::from("set-x11-keymap"), String::from(keyboard)],
+  files_eval(
+    files::write_file(
+      "/mnt/etc/X11/xorg.conf.d/00-keyboard.conf",
+      &format!(
+        "Section \"InputClass\"\n\
+                 Identifier \"system-keyboard\"\n\
+                 MatchIsKeyboard \"on\"\n\
+                 Option \"XkbLayout\" \"{keyboard}\"\n\
+                 EndSection\n"
+      ),
     ),
-    "Set x11 keymap",
-  );
-  exec_eval(
-    exec_chroot(
-      "localectl",
-      vec![String::from("set-keymap"), String::from(keyboard)],
-    ),
-    "Set global keymap",
+    "set X11 keyboard layout",
   );
 }

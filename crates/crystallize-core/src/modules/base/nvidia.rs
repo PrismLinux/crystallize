@@ -1,13 +1,13 @@
 use crate::utils::install;
 
-pub fn install_nvidia() {
+pub fn install_nvidia() -> Result<(), Box<dyn std::error::Error>> {
   install::install(vec![
     "dkms",
     "nvidia",
     "nvidia-dkms",
     "nvidia-utils",
     "egl-wayland",
-  ]);
+  ])?;
 
   // Apply nvidia module in grub
   let grub_cmdline_content = std::fs::read_to_string("/mnt/etc/default/grub").unwrap_or_default();
@@ -57,4 +57,5 @@ pub fn install_nvidia() {
   }
   let new_initcpio_content = final_lines.join("\n");
   std::fs::write("/mnt/etc/mkinitcpio.conf", new_initcpio_content).unwrap();
+  Ok(())
 }

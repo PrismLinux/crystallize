@@ -102,9 +102,9 @@ fn install_legacy_grub(device: &str) {
   );
 }
 
-pub fn install_bootloader_efi(efidir: PathBuf) {
+pub fn install_bootloader_efi(efidir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
   // Install required packages
-  install::install(GRUB_PACKAGES.to_vec());
+  install::install(GRUB_PACKAGES.to_vec())?;
 
   // Prepare EFI directory path
   let efidir = std::path::Path::new("/mnt").join(efidir);
@@ -124,11 +124,12 @@ pub fn install_bootloader_efi(efidir: PathBuf) {
 
   // Set default boot entry
   set_default_boot_entry();
+  Ok(())
 }
 
-pub fn install_bootloader_legacy(device: PathBuf) {
+pub fn install_bootloader_legacy(device: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
   // Install required packages
-  install::install(GRUB_LEGACY_PACKAGES.to_vec());
+  install::install(GRUB_LEGACY_PACKAGES.to_vec())?;
 
   // Validate device exists
   if !device.exists() {
@@ -142,4 +143,5 @@ pub fn install_bootloader_legacy(device: PathBuf) {
 
   // Configure theme and generate GRUB config
   configure_grub_theme_and_config();
+  Ok(())
 }
