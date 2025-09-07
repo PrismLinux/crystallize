@@ -75,6 +75,6 @@ pub(super) fn enable_service(service: &str, logmsg: &str) {
         String::from(service),
       ],
     ),
-    (*logmsg).to_string().as_str(),
+    logmsg,
   );
 }

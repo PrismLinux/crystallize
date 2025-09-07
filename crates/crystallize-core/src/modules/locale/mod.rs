@@ -18,7 +18,7 @@ pub fn set_timezone(timezone: &str) {
   );
 }
 
-pub fn set_locale(locale: String) {
+pub fn set_locale(locale: &str) {
   files_eval(
     files::append_file("/mnt/etc/locale.gen", "en_US.UTF-8 UTF-8"),
     "add en_US.UTF-8 UTF-8 to locale.gen",

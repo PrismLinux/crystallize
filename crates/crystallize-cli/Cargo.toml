@@ -10,6 +10,6 @@ name = "crystallize-cli"
 path = "src/main.rs"
 
 [dependencies]
-crystallize-core.workspace = true
 clap.workspace = true
+crystallize-core.workspace = true
 human-panic.workspace = true

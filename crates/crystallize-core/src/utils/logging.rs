@@ -3,7 +3,7 @@ use flexi_logger::{DeferredNow, LogSpecification, Logger, style};
 use log::LevelFilter;
 use std::io::Write;
 
-pub fn init(verbosity: usize) {
+pub fn init(verbosity: usize) -> Result<(), Box<dyn std::error::Error>> {
   let log_specification = match verbosity {
     0 => LogSpecification::builder()
       .default(LevelFilter::Info)
@@ -15,10 +15,15 @@ pub fn init(verbosity: usize) {
       .default(LevelFilter::Trace)
       .build(),
   };
+
   Logger::with(log_specification)
     .format(format_log_entry)
     .start()
-    .unwrap();
+    .map_err(|e| -> Box<dyn std::error::Error> {
+      format!("Failed to initialize logger: {e}").into()
+    })?;
+
+  Ok(())
 }
 
 /// Formats a log entry with color

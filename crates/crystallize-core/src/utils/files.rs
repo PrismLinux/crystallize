@@ -32,7 +32,7 @@ pub fn create_file_with_content(path: &str, content: &str) -> std::io::Result<()
   }
 
   match fs::write(path, content) {
-    Ok(_) => {
+    Ok(()) => {
       log::info!("Created file with content: {path}");
       Ok(())
     }
@@ -62,10 +62,10 @@ pub fn copy_file(path: &str, destpath: &str) -> std::io::Result<()> {
   }
 }
 
-/// Legacy copy_file function that crashes on error
+/// Legacy `copy_file` function that crashes on error
 pub fn copy_file_or_crash(path: &str, destpath: &str) {
   match copy_file(path, destpath) {
-    Ok(_) => {}
+    Ok(()) => {}
     Err(e) => {
       crash(
         format!("Copy {path} to {destpath}: Failed with error {e}"),
@@ -102,7 +102,7 @@ pub fn write_file(path: &str, content: &str) -> std::io::Result<()> {
   }
 
   match fs::write(path, content) {
-    Ok(_) => {
+    Ok(()) => {
       log::info!("Wrote content to file: {path}");
       Ok(())
     }
@@ -141,11 +141,11 @@ pub fn sed_file_regex(
   let new_contents = re.replace_all(&contents, replace);
 
   // Only write if there were changes
-  if new_contents != contents {
+  if new_contents == contents {
+    log::info!("No matches found, file unchanged");
+  } else {
     fs::write(path, new_contents.as_ref())?;
     log::info!("File updated successfully");
-  } else {
-    log::info!("No matches found, file unchanged");
   }
 
   Ok(())
@@ -154,7 +154,7 @@ pub fn sed_file_regex(
 /// Create directory and all parent directories
 pub fn create_directory(path: &str) -> std::io::Result<()> {
   match fs::create_dir_all(path) {
-    Ok(_) => {
+    Ok(()) => {
       log::debug!("Created directory: {path}");
       Ok(())
     }
@@ -239,7 +239,7 @@ pub fn remove(path: &str) -> std::io::Result<()> {
 
   if path_obj.is_dir() {
     match fs::remove_dir_all(path) {
-      Ok(_) => {
+      Ok(()) => {
         log::info!("Removed directory: {path}");
         Ok(())
       }
@@ -250,7 +250,7 @@ pub fn remove(path: &str) -> std::io::Result<()> {
     }
   } else if path_obj.is_file() {
     match fs::remove_file(path) {
-      Ok(_) => {
+      Ok(()) => {
         log::info!("Removed file: {path}");
         Ok(())
       }
@@ -271,7 +271,7 @@ pub fn set_permissions(path: &str, mode: u32) -> std::io::Result<()> {
 
   let permissions = std::fs::Permissions::from_mode(mode);
   match fs::set_permissions(path, permissions) {
-    Ok(_) => {
+    Ok(()) => {
       log::info!("Set permissions {mode:o} on {path}");
       Ok(())
     }
@@ -293,19 +293,19 @@ pub fn ensure_directory(path: &str, create_parents: bool) -> std::io::Result<()>
     if is_directory(path) {
       log::debug!("Directory already exists: {path}");
       return Ok(());
-    } else {
-      return Err(io::Error::new(
-        io::ErrorKind::AlreadyExists,
-        format!("{path} exists but is not a directory"),
-      ));
     }
+
+    return Err(io::Error::new(
+      io::ErrorKind::AlreadyExists,
+      format!("{path} exists but is not a directory"),
+    ));
   }
 
   if create_parents {
     create_directory(path)
   } else {
     match fs::create_dir(path) {
-      Ok(_) => {
+      Ok(()) => {
         log::info!("Created directory: {path}");
         Ok(())
       }

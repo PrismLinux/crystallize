@@ -54,8 +54,7 @@ impl FilesystemType {
     match self {
       Self::Ext4 => vec!["-F"],
       Self::Fat32 => vec!["-F32"],
-      Self::Btrfs => vec!["-f"],
-      Self::Xfs => vec!["-f"],
+      Self::Btrfs | Self::Xfs => vec!["-f"],
       Self::NoFormat => unreachable!("NoFormat should not call args()"),
     }
   }
@@ -90,7 +89,7 @@ impl DeviceParser {
     }
   }
 
-  /// Check if device uses NVMe or MMC naming convention
+  /// Check if device uses `NVMe` or MMC naming convention
   fn is_nvme_or_mmc(device_str: &str) -> bool {
     device_str.contains("nvme") || device_str.contains("mmcblk")
   }
@@ -500,22 +499,19 @@ pub fn fmt_mount(mountpoint: &str, filesystem: &str, blockdevice: &str, efi: boo
   let _ = exec("umount", vec![String::from(blockdevice)]);
 
   // Parse filesystem type
-  let fs_type = match FilesystemType::from_str(filesystem) {
-    Some(fs) => fs,
-    None => {
-      crash(
-        format!("Unknown filesystem {filesystem}, used in partition {blockdevice}"),
-        1,
-      );
-    }
+  let Some(fs_type) = FilesystemType::from_str(filesystem) else {
+    crash(
+      format!("Unknown filesystem {filesystem}, used in partition {blockdevice}"),
+      1,
+    );
   };
 
   // Handle no-format case
-  if !fs_type.needs_formatting() {
-    log::info!("Skipping format for {blockdevice} (noformat specified)");
+  if fs_type.needs_formatting() {
+    FilesystemFormatter::format(blockdevice, &fs_type);
   } else {
     // Format the partition
-    FilesystemFormatter::format(blockdevice, &fs_type);
+    log::info!("Skipping format for {blockdevice} (noformat specified)");
   }
 
   // Ensure mount point exists
@@ -538,8 +534,8 @@ pub fn fmt_mount(mountpoint: &str, filesystem: &str, blockdevice: &str, efi: boo
 }
 
 pub fn partition(
-  device: PathBuf,
-  mode: PartitionMode,
+  device: &PathBuf,
+  mode: &PartitionMode,
   efi: bool,
   partitions: &mut Vec<cli::Partition>,
 ) {
@@ -555,13 +551,13 @@ pub fn partition(
       log::info!("Automatically partitioning {device:?}");
 
       // Create partition table and partitions
-      PartitionTable::create(&device, efi);
+      PartitionTable::create(device, efi);
 
       // Set boot flags immediately after partition creation
-      BootFlags::set_auto_flags(&device, efi);
+      BootFlags::set_auto_flags(device, efi);
 
       // Format and mount partitions
-      format_and_mount_auto(&device, efi);
+      format_and_mount_auto(device, efi);
 
       log::info!("Auto partitioning completed successfully");
     }

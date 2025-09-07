@@ -1,6 +1,13 @@
 use std::path::PathBuf;
 
-use crate::utils::{crash, exec::exec_chroot, exec_eval, files::sed_file, files_eval, install};
+use crate::utils::{
+  crash,
+  exec::exec_chroot,
+  exec_eval,
+  files::sed_file,
+  files_eval,
+  install::{self, InstallError},
+};
 
 const GRUB_PACKAGES: &[&str] = &[
   "prismlinux/grub",
@@ -106,13 +113,15 @@ fn install_legacy_grub(device: &str) {
   );
 }
 
-pub fn install_bootloader_efi(efidir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+pub fn install_bootloader_efi(efidir: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
   // Install required packages
   install::install(GRUB_PACKAGES.to_vec())?;
 
   // Prepare EFI directory path
   let efidir = std::path::Path::new("/mnt").join(efidir);
-  let efi_str = efidir.to_str().unwrap();
+  let efi_str = efidir.to_str().ok_or_else(|| {
+    InstallError::IoError("EFI directory path contains invalid UTF-8 characters".to_string())
+  })?;
 
   // Validate EFI directory exists
   validate_efi_directory(efi_str);
@@ -131,7 +140,7 @@ pub fn install_bootloader_efi(efidir: PathBuf) -> Result<(), Box<dyn std::error:
   Ok(())
 }
 
-pub fn install_bootloader_legacy(device: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+pub fn install_bootloader_legacy(device: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
   // Install required packages
   install::install(GRUB_LEGACY_PACKAGES.to_vec())?;
 

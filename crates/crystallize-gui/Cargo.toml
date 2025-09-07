@@ -10,25 +10,29 @@ name = "crystallize"
 path = "src/main.rs"
 
 [dependencies]
-crystallize-core.workspace = true
 anyhow = "1.0.98"
+crystallize-core.workspace = true
+env_logger = "0.11.8"
+gio = "0.20.12"
+log.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-tokio = { version = "1.46.1", features = ["time", "rt", "rt-multi-thread", "macros"] }
-log.workspace = true
-gio = "0.20.12"
-env_logger = "0.11.8"
+tokio = { version = "1.46.1", features = [
+  "macros",
+  "rt",
+  "rt-multi-thread",
+  "time",
+] }
+
+[dependencies.adw]
+version = "0.7.2"
+features = ["v1_7"]
+package = "libadwaita"
 
 [dependencies.gtk]
 version = "0.9.7"
 features = ["v4_18"]
 package = "gtk4"
-
-
-[dependencies.adw]
-package = "libadwaita"
-features = ["v1_7"]
-version = "0.7.2"
 
 [build-dependencies]
 glib-build-tools = "0.21.0"

@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use log::warn;
 pub mod grub;
 pub mod nvidia;
@@ -50,7 +50,7 @@ const BASE_PACKAGES: &[&str] = &[
   "chaotic-mirrorlist",
 ];
 
-pub fn install_base_packages(kernel: String) -> Result<(), Box<dyn std::error::Error>> {
+pub fn install_base_packages(kernel: &str) -> Result<(), Box<dyn std::error::Error>> {
   log::info!("Installing base packages to /mnt");
 
   // Ensure /mnt/etc exists
@@ -58,7 +58,7 @@ pub fn install_base_packages(kernel: String) -> Result<(), Box<dyn std::error::E
     log::warn!("Failed to create /mnt/etc: {e}");
   }
 
-  let kernel_pkg = match kernel.as_str() {
+  let kernel_pkg = match kernel {
     "" => "linux-cachyos",
     k if SUPPORTED_KERNELS.contains(&k) => k,
     k => {
@@ -78,7 +78,7 @@ pub fn install_base_packages(kernel: String) -> Result<(), Box<dyn std::error::E
   // Copy pacman configuration
   if let Err(e) = files::copy_file("/etc/pacman.conf", "/mnt/etc/pacman.conf") {
     log::error!("Failed to copy pacman.conf: {e}");
-  };
+  }
 
   Ok(())
 }
@@ -159,7 +159,7 @@ pub fn genfstab() {
   );
 }
 
-/// Copy configuration from LiveISO to System
+/// Copy configuration from `LiveISO` to System
 pub fn copy_live_config() {
   log::info!("Copying live configuration");
 }

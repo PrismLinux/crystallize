@@ -103,8 +103,8 @@ impl Config {
     let device = PathBuf::from("/dev/").join(&self.partition.device);
 
     partition::partition(
-      device,
-      self.partition.mode,
+      &device,
+      &self.partition.mode,
       self.partition.efi,
       &mut partitions,
     );
@@ -115,13 +115,13 @@ impl Config {
     log::info!("Setting up base system...");
 
     // Ensure essential host system tools are available
-    self.ensure_host_tools()?;
+    self.ensure_host_tools();
 
     // Install base packages first
-    base::install_base_packages(self.kernel.clone())?;
+    base::install_base_packages(&self.kernel.clone())?;
 
     // Setup the chroot environment after base packages are installed
-    self.prepare_chroot_environment()?;
+    self.prepare_chroot_environment();
 
     // Now setup keyring inside the chroot where pacman-key exists
     base::setup_archlinux_keyring().context("Failed to setup keyring")?;
@@ -141,7 +141,7 @@ impl Config {
     Ok(())
   }
 
-  fn ensure_host_tools(&self) -> Result<()> {
+  fn ensure_host_tools(&self) {
     log::debug!("Ensuring essential host tools are available");
 
     // Check for essential commands on the host system
@@ -158,11 +158,9 @@ impl Config {
         }
       }
     }
-
-    Ok(())
   }
 
-  fn prepare_chroot_environment(&self) -> Result<()> {
+  fn prepare_chroot_environment(&self) {
     log::debug!("Preparing chroot environment");
 
     // Create essential directories first
@@ -237,8 +235,6 @@ impl Config {
 
     // Wait for mounts to stabilize
     thread::sleep(Duration::from_millis(1000));
-
-    Ok(())
   }
 
   fn setup_bootloader(&self) -> Result<(), Box<dyn std::error::Error>> {
@@ -246,26 +242,25 @@ impl Config {
     log::info!("Bootloader location: {}", self.bootloader.location);
 
     if self.bootloader.r#type == "grub-efi" {
-      grub::install_bootloader_efi(PathBuf::from(&self.bootloader.location))?;
+      grub::install_bootloader_efi(&PathBuf::from(&self.bootloader.location))?;
     } else if self.bootloader.r#type == "grub-legacy" {
-      grub::install_bootloader_legacy(PathBuf::from(&self.bootloader.location))?;
+      grub::install_bootloader_legacy(&PathBuf::from(&self.bootloader.location))?;
     }
 
     Ok(())
   }
 
-  fn configure_locale(&self) -> Result<()> {
+  fn configure_locale(&self) {
     log::info!("Configuring locale: {:?}", self.locale.locale);
     log::info!("Keyboard layout: {}", self.locale.keymap);
     log::info!("Timezone: {}", self.locale.timezone);
 
-    locale::set_locale(self.locale.locale.join(" "));
+    locale::set_locale(&self.locale.locale.join(" "));
     locale::set_keyboard(&self.locale.keymap);
     locale::set_timezone(&self.locale.timezone);
-    Ok(())
   }
 
-  fn setup_networking(&self) -> Result<()> {
+  fn setup_networking(&self) {
     log::info!("Hostname: {}", self.networking.hostname);
     log::info!("IPv6 enabled: {}", self.networking.ipv6);
 
@@ -275,7 +270,6 @@ impl Config {
     if self.networking.ipv6 {
       network::enable_ipv6();
     }
-    Ok(())
   }
 
   fn install_desktop(&self) -> Result<(), Box<dyn std::error::Error>> {
@@ -335,17 +329,17 @@ impl Config {
     // Install extra packages
     if !self.extra_packages.is_empty() {
       log::info!("Installing extra packages: {:?}", self.extra_packages);
-      let packages: Vec<&str> = self.extra_packages.iter().map(|s| s.as_str()).collect();
+      let packages: Vec<&str> = self.extra_packages.iter().map(String::as_str).collect();
       install::install(packages)?;
     }
 
     // Clean up mount points
-    self.cleanup_installation()?;
+    self.cleanup_installation();
 
     Ok(())
   }
 
-  fn cleanup_installation(&self) -> Result<()> {
+  fn cleanup_installation(&self) {
     log::debug!("Cleaning up installation mounts");
 
     // Wait a moment for any pending operations to complete
@@ -386,13 +380,11 @@ impl Config {
       // Small delay between unmount attempts
       thread::sleep(Duration::from_millis(200));
     }
-
-    Ok(())
   }
 }
 
-pub fn read_config(config_path: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-  let config = Config::from_file(&config_path)?;
+pub fn read_config(config_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+  let config = Config::from_file(config_path)?;
 
   config.setup_partitions()?;
 
@@ -400,9 +392,9 @@ pub fn read_config(config_path: PathBuf) -> Result<(), Box<dyn std::error::Error
 
   config.setup_bootloader()?;
 
-  config.configure_locale()?;
+  config.configure_locale();
 
-  config.setup_networking()?;
+  config.setup_networking();
 
   config.install_desktop()?;
 

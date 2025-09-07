@@ -16,6 +16,7 @@ pub enum InstallError {
   DatabaseError(String),
   ValidationError(String),
   IoError(String),
+  PasswordHashError(String),
   UnknownError(i32, String),
 }
 
@@ -30,6 +31,7 @@ impl std::fmt::Display for InstallError {
       InstallError::DatabaseError(msg) => write!(f, "Database error: {msg}"),
       InstallError::ValidationError(msg) => write!(f, "Validation error: {msg}"),
       InstallError::IoError(msg) => write!(f, "I/O error: {msg}"),
+      InstallError::PasswordHashError(msg) => write!(f, "Password hashing error: {msg}"),
       InstallError::UnknownError(code, msg) => {
         write!(f, "Unknown error (exit code {code}): {msg}")
       }
@@ -71,6 +73,9 @@ pub fn suggest_solution(error: &InstallError) -> String {
         }
         InstallError::IoError(_) => {
             "Check file permissions, disk space, and system resources.".to_string()
+        }
+        InstallError::PasswordHashError(_) => {
+          "Try:\n1. Use a different password with standard ASCII characters\n2. Check system locale settings\n3. Restart the installation process".to_string()
         }
         InstallError::UnknownError(_, _) => {
             "Check the log file for detailed error information and try installing packages individually.".to_string()
@@ -245,14 +250,14 @@ fn parse_error_from_output(exit_code: i32, log_path: &str) -> InstallError {
     if output_text.contains("target not found") || output_text.contains("package not found") {
       // Try to extract package name from error
       for line in &output_lines {
-        if line.contains("target not found") {
-          if let Some(pkg_start) = line.find("target not found: ") {
-            let pkg_name = line[pkg_start + 18..]
-              .split_whitespace()
-              .next()
-              .unwrap_or("unknown");
-            return InstallError::PackageNotFound(pkg_name.to_string());
-          }
+        if line.contains("target not found")
+          && let Some(pkg_start) = line.find("target not found: ")
+        {
+          let pkg_name = line[pkg_start + 18..]
+            .split_whitespace()
+            .next()
+            .unwrap_or("unknown");
+          return InstallError::PackageNotFound(pkg_name.to_string());
         }
       }
       return InstallError::PackageNotFound("unknown package".to_string());
@@ -357,9 +362,9 @@ pub fn install_base_with_config(
   exec_with_progress(
     cmd,
     &format!("Install base packages {}", pkgs.join(", ")),
-    log,
-    progress_bars,
-    total_packages,
+    &log,
+    &progress_bars,
+    &total_packages,
     config,
     log_path,
   )
@@ -403,9 +408,9 @@ pub fn install_with_config(pkgs: Vec<&str>, config: &ProgressConfig) -> Result<(
   exec_with_progress(
     cmd,
     &format!("Install packages {}", pkgs.join(", ")),
-    log,
-    progress_bars,
-    total_packages,
+    &log,
+    &progress_bars,
+    &total_packages,
     config,
     log_path,
   )
@@ -415,13 +420,12 @@ pub fn install_with_config(pkgs: Vec<&str>, config: &ProgressConfig) -> Result<(
 fn find_aur_helper() -> Result<String, InstallError> {
   let aur_helpers = ["prism", "paru", "yay", "trizen"];
 
-  for helper in &aur_helpers {
-    match exec_chroot_with_output("which", vec![helper.to_string()]) {
-      Ok(output) if output.status.success() => {
-        log::info!("Using AUR helper: {helper}");
-        return Ok(helper.to_string());
-      }
-      _ => continue,
+  for helper in aur_helpers {
+    if let Ok(output) = exec_chroot_with_output("which", vec![helper.to_string()])
+      && output.status.success()
+    {
+      log::info!("Using AUR helper: {helper}");
+      return Ok(helper.to_string());
     }
   }
 
@@ -468,9 +472,9 @@ pub fn install_aur_with_config(
   exec_with_progress(
     cmd,
     &format!("Install AUR packages {} with {}", pkgs.join(", "), helper),
-    log,
-    progress_bars,
-    total_packages,
+    &log,
+    &progress_bars,
+    &total_packages,
     config,
     log_path,
   )
@@ -495,14 +499,14 @@ pub fn update_databases_with_config(config: &ProgressConfig) -> Result<(), Insta
   update_pb.set_style(
     ProgressStyle::default_spinner()
       .template("{spinner:.blue} [{elapsed_precise}] Updating package databases...")
-      .unwrap(),
+      .unwrap_or_else(|_| ProgressStyle::default_spinner()),
   );
 
   let full_command = "pacman -Sy --noconfirm";
   let mut cmd = Command::new("arch-chroot");
   cmd.args(["/mnt", "bash", "-c", full_command]);
 
-  exec_simple_with_progress(cmd, "Update package databases", log, update_pb, log_path)
+  exec_simple_with_progress(cmd, "Update package databases", &log, &update_pb, log_path)
 }
 
 /// Upgrade system packages
@@ -530,9 +534,9 @@ pub fn upgrade_system_with_config(config: &ProgressConfig) -> Result<(), Install
   exec_with_progress(
     cmd,
     "Upgrade system packages",
-    log,
-    progress_bars,
-    total_packages,
+    &log,
+    &progress_bars,
+    &total_packages,
     config,
     log_path,
   )
@@ -542,9 +546,9 @@ pub fn upgrade_system_with_config(config: &ProgressConfig) -> Result<(), Install
 fn exec_with_progress(
   mut cmd: Command,
   description: &str,
-  log: File,
-  progress_bars: ProgressBars,
-  total_packages: Arc<Mutex<Option<u64>>>,
+  log: &File,
+  progress_bars: &ProgressBars,
+  total_packages: &Arc<Mutex<Option<u64>>>,
   config: &ProgressConfig,
   log_path: &str,
 ) -> Result<(), InstallError> {
@@ -623,8 +627,8 @@ fn exec_with_progress(
 fn exec_simple_with_progress(
   mut cmd: Command,
   description: &str,
-  log: File,
-  progress_pb: ProgressBar,
+  log: &File,
+  progress_pb: &ProgressBar,
   log_path: &str,
 ) -> Result<(), InstallError> {
   let mut child = cmd
@@ -696,15 +700,14 @@ fn process_package_line(
   let line_lower = line.to_lowercase();
 
   // Look for total package count - create regex each time
-  if let Ok(regex) = Regex::new(r"packages?\s*\((\d+)\)") {
-    if let Some(captures) = regex.captures(&line_lower) {
-      if let Ok(total) = captures.get(1).unwrap().as_str().parse::<u64>() {
-        let mut total_guard = total_packages.lock().unwrap();
-        if total_guard.is_none() {
-          *total_guard = Some(total);
-          progress_bars.update_to_determinate(total);
-        }
-      }
+  if let Ok(regex) = Regex::new(r"packages?\s*\((\d+)\)")
+    && let Some(captures) = regex.captures(&line_lower)
+    && let Ok(total) = captures.get(1).unwrap().as_str().parse::<u64>()
+  {
+    let mut total_guard = total_packages.lock().unwrap();
+    if total_guard.is_none() {
+      *total_guard = Some(total);
+      progress_bars.update_to_determinate(total);
     }
   }
 
@@ -717,13 +720,12 @@ fn process_package_line(
     progress_bars.download.inc(1);
   }
 
-  if let Some(build_pb) = &progress_bars.build {
-    if line_lower.contains("building")
+  if let Some(build_pb) = &progress_bars.build
+    && (line_lower.contains("building")
       || line_lower.contains("making")
-      || line_lower.contains("compiling")
-    {
-      build_pb.inc(1);
-    }
+      || line_lower.contains("compiling"))
+  {
+    build_pb.inc(1);
   }
 
   if line_lower.contains("installing") || line_lower.contains("upgrading") {
@@ -755,19 +757,16 @@ pub fn install_multiple_categories(
 
 /// Check if packages are already installed
 pub fn check_installed(pkgs: &[&str]) -> Result<Vec<String>, InstallError> {
-  let mut not_installed = Vec::new();
-
-  for pkg in pkgs {
-    match exec_chroot_with_output("pacman", vec!["-Q".to_string(), pkg.to_string()]) {
-      Ok(output) if !output.status.success() => {
-        not_installed.push(pkg.to_string());
+  let not_installed = pkgs
+    .iter()
+    .filter(|&pkg| {
+      match exec_chroot_with_output("pacman", vec![String::from("-Q"), pkg.to_string()]) {
+        Ok(output) => !output.status.success(),
+        Err(_) => true,
       }
-      Err(_) => {
-        not_installed.push(pkg.to_string());
-      }
-      _ => {} // Package is installed
-    }
-  }
+    })
+    .map(|&pkg| pkg.to_string())
+    .collect();
 
   Ok(not_installed)
 }
