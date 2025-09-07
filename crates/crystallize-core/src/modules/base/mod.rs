@@ -10,7 +10,7 @@ use crate::utils::{
   install,
 };
 
-const SUPPORTED_KERNELS: &[&str] = &["linux-cachyos", "linux-tkg-bore", "linux-zen", "linux"];
+const SUPPORTED_KERNELS: &[&str] = &["linux-cachyos", "linux616-tkg-bore", "linux-zen", "linux"];
 
 const BASE_PACKAGES: &[&str] = &[
   // Base Arch
