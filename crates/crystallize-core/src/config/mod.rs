@@ -276,9 +276,8 @@ impl Config {
     log::info!("Installing desktop: {}", self.desktop);
 
     let desktop_setup = match self.desktop.to_lowercase().as_str() {
-      "kde" | "plasma" => Some(DesktopSetup::Kde),
+      "plasma" | "kde" => Some(DesktopSetup::Plasma),
       "gnome" => Some(DesktopSetup::Gnome),
-      "cinnamon" => Some(DesktopSetup::Cinnamon),
       "hyprland" => Some(DesktopSetup::Hyprland),
       "none" => Some(DesktopSetup::None),
       _ => {

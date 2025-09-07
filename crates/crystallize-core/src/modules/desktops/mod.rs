@@ -22,8 +22,7 @@ pub fn install_desktop_setup(
 
   match desktop_setup {
     DesktopSetup::Gnome => desktop::gnome()?,
-    DesktopSetup::Kde => desktop::kde()?,
-    DesktopSetup::Cinnamon => desktop::cinnamon()?,
+    DesktopSetup::Plasma => desktop::plasma()?,
     DesktopSetup::Hyprland => desktop::hyprland()?,
     DesktopSetup::None => log::debug!("No desktop setup selected"),
   }

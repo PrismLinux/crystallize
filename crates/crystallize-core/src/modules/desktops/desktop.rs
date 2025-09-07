@@ -1,4 +1,4 @@
-use crate::utils::{files, files_eval, install::install};
+use crate::utils::install::install;
 
 use super::services::enable_service;
 
@@ -27,7 +27,7 @@ pub(super) fn packages() -> Result<(), Box<dyn std::error::Error>> {
 
 // -------------[DE]-------------
 
-pub(super) fn kde() -> Result<(), Box<dyn std::error::Error>> {
+pub(super) fn plasma() -> Result<(), Box<dyn std::error::Error>> {
   install(vec![
     "prismlinux-plasma-settings",
     "sddm",
@@ -36,27 +36,6 @@ pub(super) fn kde() -> Result<(), Box<dyn std::error::Error>> {
     "plasma-systemmonitor",
   ])?;
   enable_service("sddm", "Enable sddm");
-  Ok(())
-}
-
-pub(super) fn cinnamon() -> Result<(), Box<dyn std::error::Error>> {
-  install(vec![
-    "cinnamon",
-    "rio",
-    "metacity",
-    "gnome-shell",
-    "lightdm",
-    "lightdm-gtk-greeter",
-    "lightdm-gtk-greeter-settings",
-  ])?;
-  files_eval(
-    files::append_file(
-      "/mnt/etc/lightdm/lightdm.conf",
-      "[SeatDefaults]\ngreeter-session=lightdm-gtk-greeter\n",
-    ),
-    "Add lightdm greeter",
-  );
-  enable_service("lightdm", "Enabling LightDM");
   Ok(())
 }
 

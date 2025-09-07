@@ -65,14 +65,12 @@ pub enum PartitionMode {
 
 #[derive(Debug, ValueEnum, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 pub enum DesktopSetup {
-  #[clap(name = "gnome")]
+  #[clap(name = "Gnome")]
   Gnome,
-  #[clap(name = "kde", aliases = ["plasma"])]
-  Kde,
-  #[clap(name = "cinnamon")]
-  Cinnamon,
-  #[clap(name = "hyprland")]
+  #[clap(name = "Plasma", aliases = ["KDE"])]
+  Plasma,
+  #[clap(name = "Hyprland")]
   Hyprland,
-  #[clap(name = "None/DIY")]
+  #[clap(name = "None", aliases = ["None/DIY"])]
   None,
 }
