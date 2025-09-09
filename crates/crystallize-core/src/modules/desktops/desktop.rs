@@ -10,17 +10,19 @@ pub(super) fn graphics() -> Result<(), Box<dyn std::error::Error>> {
 pub(super) fn packages() -> Result<(), Box<dyn std::error::Error>> {
   install(vec![
     "about",
+    // Sound
     "pipewire",
     "pipewire-alsa",
-    "pipewire-pulse",
     "pipewire-jack",
+    "pipewire-pulse",
     "gst-plugin-pipewire",
+    "libpulse",
+    "sof-firmware",
     "wireplumber",
+    // Desktop
     "xdg-user-dirs",
-    "noto-fonts",
-    "noto-fonts-emoji",
-    "noto-fonts-cjk",
-    "noto-fonts-extra",
+    "wpa_supplicant",
+    "xdg-utils",
   ])?;
   Ok(())
 }
