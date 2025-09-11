@@ -13,24 +13,24 @@ pub fn install_desktop_setup(
   // Install only the selected desktop environment and its specific packages
   match desktop_setup {
     DesktopSetup::Gnome => {
+      desktop::packages()?;
       desktop::gnome()?;
       desktop::graphics()?;
-      desktop::packages()?;
     }
     DesktopSetup::Plasma => {
+      desktop::packages()?;
       desktop::plasma()?;
       desktop::graphics()?;
-      desktop::packages()?;
     }
     DesktopSetup::Cosmic => {
+      desktop::packages()?;
       desktop::cosmic()?;
       desktop::graphics()?;
-      desktop::packages()?;
     }
     DesktopSetup::Cinnamon => {
+      desktop::packages()?;
       desktop::cinnamon()?;
       desktop::graphics()?;
-      desktop::packages()?;
     }
     DesktopSetup::None => {
       log::debug!("No desktop setup selected");
