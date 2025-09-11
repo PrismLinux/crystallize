@@ -194,14 +194,7 @@ impl BootFlags {
     exec_eval(
       exec(
         "parted",
-        vec![
-          String::from("-s"),
-          device,
-          String::from("set"),
-          partition_num,
-          String::from(flag),
-          String::from("on"),
-        ],
+        &["-s", &device, "set", &partition_num, flag, "on"],
       ),
       description,
     );
@@ -242,14 +235,7 @@ impl BootFlags {
 
     match exec(
       "parted",
-      vec![
-        String::from("-s"),
-        device,
-        String::from("set"),
-        partition_num,
-        String::from(flag),
-        String::from("on"),
-      ],
+      &["-s", &device, "set", &partition_num, flag, "on"],
     ) {
       Ok(status) if status.success() => {
         log::info!("Successfully set '{flag}' flag on {blockdevice}");
@@ -276,7 +262,7 @@ impl PartitionTable {
     let device_str = device.to_string_lossy().to_string();
 
     // Ensure device is not mounted
-    let _ = exec("umount", vec![String::from(&device_str)]);
+    let _ = exec("umount", &[&device_str]);
 
     if efi {
       Self::create_gpt(&device_str);
@@ -290,15 +276,7 @@ impl PartitionTable {
 
     // Create GPT partition table
     exec_eval(
-      exec(
-        "parted",
-        vec![
-          String::from("-s"),
-          String::from(device_str),
-          String::from("mklabel"),
-          String::from("gpt"),
-        ],
-      ),
+      exec("parted", &["-s", device_str, "mklabel", "gpt"]),
       "create GPT label",
     );
 
@@ -306,14 +284,8 @@ impl PartitionTable {
     exec_eval(
       exec(
         "parted",
-        vec![
-          String::from("-s"),
-          String::from(device_str),
-          String::from("mkpart"),
-          String::from("ESP"),
-          String::from("fat32"),
-          String::from(BOOT_START),
-          String::from(BOOT_SIZE),
+        &[
+          "-s", device_str, "mkpart", "ESP", "fat32", BOOT_START, BOOT_SIZE,
         ],
       ),
       "create EFI system partition",
@@ -323,14 +295,8 @@ impl PartitionTable {
     exec_eval(
       exec(
         "parted",
-        vec![
-          String::from("-s"),
-          String::from(device_str),
-          String::from("mkpart"),
-          String::from("root"),
-          String::from("ext4"),
-          String::from(BOOT_SIZE),
-          String::from("100%"),
+        &[
+          "-s", device_str, "mkpart", "root", "ext4", BOOT_SIZE, "100%",
         ],
       ),
       "create root partition",
@@ -342,15 +308,7 @@ impl PartitionTable {
 
     // Create MBR partition table
     exec_eval(
-      exec(
-        "parted",
-        vec![
-          String::from("-s"),
-          String::from(device_str),
-          String::from("mklabel"),
-          String::from("msdos"),
-        ],
-      ),
+      exec("parted", &["-s", device_str, "mklabel", "msdos"]),
       "create MBR label",
     );
 
@@ -358,14 +316,8 @@ impl PartitionTable {
     exec_eval(
       exec(
         "parted",
-        vec![
-          String::from("-s"),
-          String::from(device_str),
-          String::from("mkpart"),
-          String::from("primary"),
-          String::from("ext4"),
-          String::from(BOOT_START),
-          String::from(BOOT_SIZE),
+        &[
+          "-s", device_str, "mkpart", "primary", "ext4", BOOT_START, BOOT_SIZE,
         ],
       ),
       "create boot partition",
@@ -375,14 +327,8 @@ impl PartitionTable {
     exec_eval(
       exec(
         "parted",
-        vec![
-          String::from("-s"),
-          String::from(device_str),
-          String::from("mkpart"),
-          String::from("primary"),
-          String::from("ext4"),
-          String::from(BOOT_SIZE),
-          String::from("100%"),
+        &[
+          "-s", device_str, "mkpart", "primary", "ext4", BOOT_SIZE, "100%",
         ],
       ),
       "create root partition",
@@ -402,21 +348,15 @@ impl MountManager {
   fn cleanup() {
     log::debug!("Cleaning up existing mount points");
     for mount_point in Self::CLEANUP_MOUNTS {
-      let _ = exec(
-        "umount",
-        vec![String::from("-R"), String::from(*mount_point)],
-      );
+      let _ = exec("umount", &["-R", *mount_point]);
     }
   }
 
   /// Check if a path is currently mounted
   fn is_mounted(mountpoint: &str) -> bool {
-    exec(
-      "mountpoint",
-      vec![String::from("-q"), String::from(mountpoint)],
-    )
-    .map(|status| status.success())
-    .unwrap_or(false)
+    exec("mountpoint", &["-q", mountpoint])
+      .map(|status| status.success())
+      .unwrap_or(false)
   }
 
   /// Ensure mount point directory exists
@@ -433,7 +373,7 @@ impl MountManager {
   fn unmount_if_mounted(mountpoint: &str) {
     if Self::is_mounted(mountpoint) {
       log::warn!("Mountpoint {mountpoint} is already mounted, unmounting first");
-      let _ = exec("umount", vec![String::from(mountpoint)]);
+      let _ = exec("umount", &[mountpoint]);
     }
   }
 }
@@ -451,15 +391,12 @@ impl FilesystemFormatter {
 
     log::info!("Formatting {blockdevice} as {}", fs_type.display_name());
 
-    let mut args = fs_type
-      .args()
-      .iter()
-      .map(|&s| String::from(s))
-      .collect::<Vec<_>>();
-    args.push(String::from(blockdevice));
+    let args = fs_type.args();
+    let mut all_args: Vec<&str> = args.to_vec();
+    all_args.push(blockdevice);
 
     exec_eval(
-      exec(fs_type.command(), args),
+      exec(fs_type.command(), &all_args),
       &format!("format {blockdevice} as {}", fs_type.display_name()),
     );
 
@@ -472,7 +409,7 @@ impl FilesystemFormatter {
   /// Format partition based on EFI requirements
   fn format_auto_partition(partition: &str, is_boot: bool, efi: bool) {
     // Ensure partition is unmounted before formatting
-    let _ = exec("umount", vec![String::from(partition)]);
+    let _ = exec("umount", &[partition]);
 
     let fs_type = if is_boot {
       if efi {
@@ -496,7 +433,7 @@ pub fn fmt_mount(mountpoint: &str, filesystem: &str, blockdevice: &str, efi: boo
   log::info!("Formatting and mounting {blockdevice} at {mountpoint} with filesystem {filesystem}");
 
   // Unmount if already mounted
-  let _ = exec("umount", vec![String::from(blockdevice)]);
+  let _ = exec("umount", &[blockdevice]);
 
   // Parse filesystem type
   let Some(fs_type) = FilesystemType::from_str(filesystem) else {
@@ -602,11 +539,11 @@ pub fn mount(partition: &str, mountpoint: &str, options: &str) {
   MountManager::unmount_if_mounted(mountpoint);
 
   // Prepare mount command
-  let mut mount_args = vec![String::from(partition), String::from(mountpoint)];
-
-  if !options.is_empty() {
-    mount_args.extend_from_slice(&[String::from("-o"), String::from(options)]);
-  }
+  let mount_args: Vec<&str> = if options.is_empty() {
+    vec![partition, mountpoint]
+  } else {
+    vec![partition, mountpoint, "-o", options]
+  };
 
   let description = if options.is_empty() {
     format!("mount {partition} at {mountpoint}")
@@ -614,7 +551,7 @@ pub fn mount(partition: &str, mountpoint: &str, options: &str) {
     format!("mount {partition} with options {options} at {mountpoint}")
   };
 
-  exec_eval(exec("mount", mount_args), &description);
+  exec_eval(exec("mount", &mount_args), &description);
 
   log::info!("Successfully mounted {partition} at {mountpoint}");
 }
@@ -622,7 +559,7 @@ pub fn mount(partition: &str, mountpoint: &str, options: &str) {
 pub fn umount(mountpoint: &str) {
   log::info!("Unmounting {mountpoint}");
   exec_eval(
-    exec("umount", vec![String::from(mountpoint)]),
+    exec("umount", &[mountpoint]),
     &format!("unmount {mountpoint}"),
   );
 }

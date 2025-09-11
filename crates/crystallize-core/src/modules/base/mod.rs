@@ -22,7 +22,6 @@ const BASE_PACKAGES: &[&str] = &[
   "curl",
   "wget",
   "openssh",
-  "iptables",
   // Base Prism
   "prism",
   "prismlinux",
@@ -81,7 +80,7 @@ pub fn setup_archlinux_keyring() -> Result<()> {
   log::info!("Setting up Arch Linux keyring in chroot");
 
   // Verify that pacman-key exists in the chroot
-  match exec_chroot("which", vec!["pacman-key".to_string()]) {
+  match exec_chroot("which", &["pacman-key"]) {
     Ok(status) if status.success() => {
       log::debug!("pacman-key found in chroot");
     }
@@ -99,7 +98,7 @@ pub fn setup_archlinux_keyring() -> Result<()> {
 
   for (arg, description) in keyring_steps {
     log::info!("Running: pacman-key {arg}");
-    match exec_chroot("pacman-key", vec![arg.to_string()]) {
+    match exec_chroot("pacman-key", &[arg]) {
       Ok(status) if status.success() => {
         log::info!("✓ {description}");
       }
@@ -122,7 +121,7 @@ pub fn setup_archlinux_keyring() -> Result<()> {
 
   // Refresh the keyring
   log::info!("Refreshing keyring");
-  match exec_chroot("pacman", vec!["-Sy".to_string(), "--noconfirm".to_string()]) {
+  match exec_chroot("pacman", &["-Sy", "--noconfirm"]) {
     Ok(status) if status.success() => {
       log::info!("✓ Keyring refreshed successfully");
     }
@@ -141,13 +140,7 @@ pub fn setup_archlinux_keyring() -> Result<()> {
 pub fn genfstab() {
   log::info!("Generating fstab");
   exec_eval(
-    exec(
-      "bash",
-      vec![
-        String::from("-c"),
-        String::from("genfstab -U /mnt >> /mnt/etc/fstab"),
-      ],
-    ),
+    exec("bash", &["-c", "genfstab -U /mnt >> /mnt/etc/fstab"]),
     "Generate fstab",
   );
 }
@@ -161,7 +154,7 @@ pub fn copy_live_config() {
 pub fn install_zram(size: u64) -> Result<(), Box<dyn std::error::Error>> {
   log::info!("Installing and configuring ZRAM");
 
-  install::install(vec!["zram-generator"])?;
+  install::install(&["zram-generator"])?;
 
   // Ensure the systemd directory exists
   if let Err(e) = files::create_directory("/mnt/etc/systemd") {
@@ -186,22 +179,22 @@ pub fn install_zram(size: u64) -> Result<(), Box<dyn std::error::Error>> {
 
 pub fn install_homemgr() -> Result<(), Box<dyn std::error::Error>> {
   log::info!("Installing Nix package manager");
-  install::install(vec!["nix"])?;
+  install::install(&["nix"])?;
   Ok(())
 }
 
 pub fn install_flatpak() -> Result<(), Box<dyn std::error::Error>> {
   log::info!("Installing Flatpak");
-  install::install(vec!["flatpak"])?;
+  install::install(&["flatpak"])?;
 
   exec_eval(
     exec_chroot(
       "flatpak",
-      vec![
-        String::from("remote-add"),
-        String::from("--if-not-exists"),
-        String::from("flathub"),
-        String::from("https://flathub.org/repo/flathub.flatpakrepo"),
+      &[
+        "remote-add",
+        "--if-not-exists",
+        "flathub",
+        "https://flathub.org/repo/flathub.flatpakrepo",
       ],
     ),
     "add flathub remote",

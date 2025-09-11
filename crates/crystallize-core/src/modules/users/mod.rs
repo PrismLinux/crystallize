@@ -26,7 +26,7 @@ pub fn new_user(
     _ => "bash",
   };
 
-  install::install(vec![shell_to_install])?;
+  install::install(&[shell_to_install])?;
 
   let shell_path = match shell {
     "fish" => "/usr/bin/fish",
@@ -37,13 +37,13 @@ pub fn new_user(
   exec_eval(
     exec_chroot(
       "useradd",
-      vec![
-        String::from("-m"),
-        String::from("-s"),
-        String::from(shell_path),
-        String::from("-p"),
-        final_password.trim().to_string(),
-        String::from(username),
+      &[
+        "-m",
+        "-s",
+        shell_path,
+        "-p",
+        final_password.trim(),
+        username,
       ],
     ),
     &format!("Create user {username}"),
@@ -51,14 +51,7 @@ pub fn new_user(
 
   if hasroot {
     exec_eval(
-      exec_chroot(
-        "usermod",
-        vec![
-          String::from("-aG"),
-          String::from("wheel"),
-          String::from(username),
-        ],
-      ),
+      exec_chroot("usermod", &["-aG", "wheel", username]),
       &format!("Add user {username} to wheel group"),
     );
 
@@ -98,7 +91,9 @@ pub fn new_user(
 /// Hash password
 pub fn hash_pass(password: &str) -> Result<String, InstallError> {
   let output = Command::new("openssl")
-    .args(["passwd", "-1", password])
+    .arg("passwd")
+    .arg("-1")
+    .arg(password)
     .output()
     .map_err(|e| InstallError::PasswordHashError(format!("Failed to execute openssl: {e}")))?;
 
@@ -120,13 +115,7 @@ pub fn hash_pass(password: &str) -> Result<String, InstallError> {
 /// Set root password
 pub fn root_pass(root_pass: &str) {
   exec_eval(
-    exec_chroot(
-      "bash",
-      vec![
-        String::from("-c"),
-        format!("'usermod --password {root_pass} root'"),
-      ],
-    ),
+    exec_chroot("usermod", &["--password", root_pass, "root"]),
     "set root password",
   );
 }

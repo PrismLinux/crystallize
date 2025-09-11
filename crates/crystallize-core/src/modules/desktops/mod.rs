@@ -8,7 +8,7 @@ pub fn install_desktop_setup(
 ) -> Result<(), Box<dyn std::error::Error>> {
   log::debug!("Installing {desktop_setup:?}");
   services::networkmanager()?;
-  services::ufw()?;
+  services::firewalld()?;
 
   if desktop_setup != DesktopSetup::None {
     desktop::graphics()?;
@@ -23,7 +23,8 @@ pub fn install_desktop_setup(
   match desktop_setup {
     DesktopSetup::Gnome => desktop::gnome()?,
     DesktopSetup::Plasma => desktop::plasma()?,
-    DesktopSetup::Hyprland => desktop::hyprland()?,
+    DesktopSetup::Cosmic => desktop::cosmic()?,
+    DesktopSetup::Cinnamon => desktop::cinnamon()?,
     DesktopSetup::None => log::debug!("No desktop setup selected"),
   }
 

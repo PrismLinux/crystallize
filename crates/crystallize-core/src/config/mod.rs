@@ -148,7 +148,7 @@ impl Config {
     let essential_tools = vec!["cat", "mount", "umount", "chroot", "pacstrap"];
 
     for tool in essential_tools {
-      let result = exec("which", vec![String::from(tool)]);
+      let result = exec("which", &[tool]);
       match result {
         Ok(status) if status.success() => {
           log::debug!("Found essential tool: {tool}");
@@ -174,7 +174,7 @@ impl Config {
     ];
 
     for dir in essential_dirs {
-      let result = exec("mkdir", vec![String::from("-p"), String::from(dir)]);
+      let result = exec("mkdir", &["-p", dir]);
       if result.is_err() {
         log::warn!("Failed to create directory: {dir}");
       }
@@ -182,54 +182,23 @@ impl Config {
 
     // Mount essential filesystems
     exec_eval(
-      exec(
-        "mount",
-        vec![
-          String::from("-t"),
-          String::from("proc"),
-          String::from("proc"),
-          String::from("/mnt/proc"),
-        ],
-      ),
+      exec("mount", &["-t", "proc", "proc", "/mnt/proc"]),
       "mount proc filesystem",
     );
 
     exec_eval(
-      exec(
-        "mount",
-        vec![
-          String::from("-t"),
-          String::from("sysfs"),
-          String::from("sysfs"),
-          String::from("/mnt/sys"),
-        ],
-      ),
+      exec("mount", &["-t", "sysfs", "sysfs", "/mnt/sys"]),
       "mount sys filesystem",
     );
 
     exec_eval(
-      exec(
-        "mount",
-        vec![
-          String::from("--bind"),
-          String::from("/dev"),
-          String::from("/mnt/dev"),
-        ],
-      ),
+      exec("mount", &["--bind", "/dev", "/mnt/dev"]),
       "bind mount dev filesystem",
     );
 
     // Mount devpts for proper terminal support
     exec_eval(
-      exec(
-        "mount",
-        vec![
-          String::from("-t"),
-          String::from("devpts"),
-          String::from("devpts"),
-          String::from("/mnt/dev/pts"),
-        ],
-      ),
+      exec("mount", &["-t", "devpts", "devpts", "/mnt/dev/pts"]),
       "mount devpts filesystem",
     );
 
@@ -278,7 +247,8 @@ impl Config {
     let desktop_setup = match self.desktop.to_lowercase().as_str() {
       "plasma" | "kde" => Some(DesktopSetup::Plasma),
       "gnome" => Some(DesktopSetup::Gnome),
-      "hyprland" => Some(DesktopSetup::Hyprland),
+      "cosmic" => Some(DesktopSetup::Cosmic),
+      "cinnamon" => Some(DesktopSetup::Cinnamon),
       "none" => Some(DesktopSetup::None),
       _ => {
         log::warn!("Unknown desktop: {}, skipping", self.desktop);
@@ -329,7 +299,7 @@ impl Config {
     if !self.extra_packages.is_empty() {
       log::info!("Installing extra packages: {:?}", self.extra_packages);
       let packages: Vec<&str> = self.extra_packages.iter().map(String::as_str).collect();
-      install::install(packages)?;
+      install::install(&packages)?;
     }
 
     // Clean up mount points
@@ -355,17 +325,14 @@ impl Config {
 
     for mount_point in mount_points {
       // Try normal unmount first
-      match exec("umount", vec![String::from(mount_point)]) {
+      match exec("umount", &[mount_point]) {
         Ok(status) if status.success() => {
           log::debug!("Successfully unmounted: {mount_point}");
         }
         _ => {
           // Try lazy unmount if normal unmount fails
           log::debug!("Trying lazy unmount for: {mount_point}");
-          match exec(
-            "umount",
-            vec![String::from("-l"), String::from(mount_point)],
-          ) {
+          match exec("umount", &["-l", mount_point]) {
             Ok(status) if status.success() => {
               log::debug!("Successfully lazy unmounted: {mount_point}");
             }

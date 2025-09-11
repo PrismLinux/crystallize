@@ -4,18 +4,15 @@ pub fn set_timezone(timezone: &str) {
   exec_eval(
     exec_chroot(
       "ln",
-      vec![
-        String::from("-sf"),
-        format!("/usr/share/zoneinfo/{}", timezone),
-        String::from("/etc/localtime"),
+      &[
+        "-sf",
+        &format!("/usr/share/zoneinfo/{}", timezone),
+        "/etc/localtime",
       ],
     ),
     "Set timezone",
   );
-  exec_eval(
-    exec_chroot("hwclock", vec![String::from("--systohc")]),
-    "Set system clock",
-  );
+  exec_eval(exec_chroot("hwclock", &["--systohc"]), "Set system clock");
 }
 
 pub fn set_locale(locale: &str) {
@@ -55,21 +52,17 @@ pub fn set_locale(locale: &str) {
       );
     }
   }
-  exec_eval(exec_chroot("locale-gen", vec![]), "generate locales");
+  exec_eval(exec_chroot("locale-gen", &[]), "generate locales");
 }
 
 pub fn set_keyboard(keyboard: &str) {
-  files_eval(
-    files::write_file(
-      "/mnt/etc/X11/xorg.conf.d/00-keyboard.conf",
-      &format!(
-        "Section \"InputClass\"\n\
-                 Identifier \"system-keyboard\"\n\
-                 MatchIsKeyboard \"on\"\n\
-                 Option \"XkbLayout\" \"{keyboard}\"\n\
-                 EndSection\n"
-      ),
-    ),
-    "set X11 keyboard layout",
+  exec_eval(
+    exec_chroot("localectl", &["set-x11-keymap", keyboard]),
+    "Set x11 keymap",
+  );
+
+  exec_eval(
+    exec_chroot("localectl", &["set-keymap", keyboard]),
+    "Set global keymap",
   );
 }

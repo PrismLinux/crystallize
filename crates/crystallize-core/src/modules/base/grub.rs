@@ -34,10 +34,7 @@ fn configure_grub_theme_and_config() {
   );
 
   exec_eval(
-    exec_chroot(
-      "grub-mkconfig",
-      vec![String::from("-o"), String::from(GRUB_CONFIG_PATH)],
-    ),
+    exec_chroot("grub-mkconfig", &["-o", GRUB_CONFIG_PATH]),
     "Create grub.cfg",
   );
 }
@@ -54,11 +51,11 @@ fn install_main_efi_bootloader(efi_str: &str) {
   exec_eval(
     exec_chroot(
       "grub-install",
-      vec![
-        String::from("--target=x86_64-efi"),
-        format!("--efi-directory={}", efi_str),
-        String::from("--bootloader-id=PrismLinux"),
-        String::from("--recheck"),
+      &[
+        "--target=x86_64-efi",
+        &format!("--efi-directory={}", efi_str),
+        "--bootloader-id=PrismLinux",
+        "--recheck",
       ],
     ),
     "install grub as efi with proper boot entry",
@@ -70,12 +67,12 @@ fn install_fallback_efi_bootloader(efi_str: &str) {
   exec_eval(
     exec_chroot(
       "grub-install",
-      vec![
-        String::from("--target=x86_64-efi"),
-        format!("--efi-directory={}", efi_str),
-        String::from("--bootloader-id=PrismLinux-fallback"),
-        String::from("--removable"),
-        String::from("--recheck"),
+      &[
+        "--target=x86_64-efi",
+        &format!("--efi-directory={}", efi_str),
+        "--bootloader-id=PrismLinux-fallback",
+        "--removable",
+        "--recheck",
       ],
     ),
     "install grub as fallback efi bootloader",
@@ -87,11 +84,9 @@ fn set_default_boot_entry() {
   exec_eval(
     exec_chroot(
       "sh",
-      vec![
-        String::from("-c"),
-        String::from(
-          "efibootmgr | grep 'PrismLinux' | head -1 | cut -c5-8 | xargs -I {} efibootmgr --bootorder {}",
-        ),
+      &[
+        "-c",
+        "efibootmgr | grep 'PrismLinux' | head -1 | cut -c5-8 | xargs -I {} efibootmgr --bootorder {}",
       ],
     ),
     "Set default boot entry",
@@ -101,21 +96,14 @@ fn set_default_boot_entry() {
 /// Install Legacy GRUB bootloader
 fn install_legacy_grub(device: &str) {
   exec_eval(
-    exec_chroot(
-      "grub-install",
-      vec![
-        String::from("--target=i386-pc"),
-        String::from("--recheck"),
-        device.to_string(),
-      ],
-    ),
+    exec_chroot("grub-install", &["--target=i386-pc", "--recheck", device]),
     "install grub as legacy",
   );
 }
 
 pub fn install_bootloader_efi(efidir: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
   // Install required packages
-  install::install(GRUB_PACKAGES.to_vec())?;
+  install::install(GRUB_PACKAGES)?;
 
   // Prepare EFI directory path
   let efidir = std::path::Path::new("/mnt").join(efidir);
@@ -142,7 +130,7 @@ pub fn install_bootloader_efi(efidir: &PathBuf) -> Result<(), Box<dyn std::error
 
 pub fn install_bootloader_legacy(device: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
   // Install required packages
-  install::install(GRUB_LEGACY_PACKAGES.to_vec())?;
+  install::install(GRUB_LEGACY_PACKAGES)?;
 
   // Validate device exists
   if !device.exists() {

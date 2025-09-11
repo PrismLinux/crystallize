@@ -1,10 +1,10 @@
 use crate::utils::install::{self, InstallError};
 
 pub fn install_nvidia() -> Result<(), Box<dyn std::error::Error>> {
-  install::install(vec![
+  install::install(&[
     "dkms",
-    "nvidia",
-    "nvidia-dkms",
+    "nvidia-open",
+    "nvidia-open-dkms",
     "nvidia-utils",
     "egl-wayland",
   ])?;

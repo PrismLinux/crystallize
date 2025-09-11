@@ -142,53 +142,6 @@ impl ProgressBars {
     }
   }
 
-  fn new_aur(multi: &MultiProgress, config: &ProgressConfig) -> Self {
-    let download_template = if config.show_eta {
-      "{spinner:.magenta} [{elapsed_precise}] Downloading AUR packages ({pos} downloaded) ETA: {eta}"
-    } else {
-      "{spinner:.magenta} [{elapsed_precise}] Downloading AUR packages ({pos} downloaded)"
-    };
-
-    let build_template = if config.show_eta {
-      "{spinner:.yellow} [{elapsed_precise}] Building AUR packages ({pos} built) ETA: {eta}"
-    } else {
-      "{spinner:.yellow} [{elapsed_precise}] Building AUR packages ({pos} built)"
-    };
-
-    let install_template = if config.show_eta {
-      "{spinner:.green} [{elapsed_precise}] Installing AUR packages ({pos} installed) ETA: {eta}"
-    } else {
-      "{spinner:.green} [{elapsed_precise}] Installing AUR packages ({pos} installed)"
-    };
-
-    let download_pb = multi.add(ProgressBar::new_spinner());
-    download_pb.set_style(
-      ProgressStyle::default_spinner()
-        .template(download_template)
-        .unwrap(),
-    );
-
-    let build_pb = multi.add(ProgressBar::new_spinner());
-    build_pb.set_style(
-      ProgressStyle::default_spinner()
-        .template(build_template)
-        .unwrap(),
-    );
-
-    let install_pb = multi.add(ProgressBar::new_spinner());
-    install_pb.set_style(
-      ProgressStyle::default_spinner()
-        .template(install_template)
-        .unwrap(),
-    );
-
-    Self {
-      download: download_pb,
-      build: Some(build_pb),
-      install: install_pb,
-    }
-  }
-
   fn finish_all(&self, success: bool) {
     if success {
       self.download.finish_with_message("Downloads complete");
@@ -331,33 +284,31 @@ fn validate_packages(pkgs: &[&str]) -> Result<(), InstallError> {
 
 /// Install packages using pacstrap with progress tracking
 pub fn install_base(pkgs: Vec<&str>) -> Result<(), InstallError> {
-  install_base_with_config(pkgs, &ProgressConfig::default())
+  install_base_with_config(&pkgs, &ProgressConfig::default())
 }
 
-/// Install packages using pacstrap with custom configuration
+/// Install packages using pacstrap with progress tracking
 pub fn install_base_with_config(
-  pkgs: Vec<&str>,
+  pkgs: &[&str],
   config: &ProgressConfig,
 ) -> Result<(), InstallError> {
   if pkgs.is_empty() {
     return Ok(());
   }
 
-  validate_packages(&pkgs)?;
+  validate_packages(pkgs)?;
 
-  let pkg_args: Vec<String> = pkgs.iter().map(|&s| s.to_string()).collect();
-  let log_path = "/tmp/crystallize-pacstrap.log";
-  let log = File::create(log_path)?;
+  let log_file = tempfile::NamedTempFile::new()?;
+  let log_path = log_file.path();
+  let log = log_file.reopen()?;
 
   let multi_progress = MultiProgress::new();
   let progress_bars = ProgressBars::new_standard(&multi_progress, config);
   let total_packages = Arc::new(Mutex::new(None::<u64>));
 
-  let mut args = vec![String::from("/mnt")];
-  args.extend(pkg_args);
-
   let mut cmd = Command::new("pacstrap");
-  cmd.args(&args);
+  cmd.arg("/mnt");
+  cmd.args(pkgs);
 
   exec_with_progress(
     cmd,
@@ -366,44 +317,40 @@ pub fn install_base_with_config(
     &progress_bars,
     &total_packages,
     config,
-    log_path,
+    log_path.to_str().unwrap(),
   )
 }
 
 /// Install packages in chroot environment
-pub fn install(pkgs: Vec<&str>) -> Result<(), InstallError> {
+pub fn install(pkgs: &[&str]) -> Result<(), InstallError> {
   install_with_config(pkgs, &ProgressConfig::default())
 }
 
 /// Install packages in chroot with custom configuration
-pub fn install_with_config(pkgs: Vec<&str>, config: &ProgressConfig) -> Result<(), InstallError> {
+pub fn install_with_config(pkgs: &[&str], config: &ProgressConfig) -> Result<(), InstallError> {
   if pkgs.is_empty() {
     return Ok(());
   }
 
-  validate_packages(&pkgs)?;
+  validate_packages(pkgs)?;
 
   if config.detailed_logging {
     log::info!("Installing packages in chroot: {}", pkgs.join(", "));
   }
 
-  let log_path = "/tmp/crystallize-install.log";
-  let log = File::create(log_path)?;
+  let log_file = tempfile::NamedTempFile::new()?;
+  let log_path = log_file.path();
+  let log = log_file.reopen()?;
 
   let multi_progress = MultiProgress::new();
   let progress_bars = ProgressBars::new_standard(&multi_progress, config);
   let total_packages = Arc::new(Mutex::new(None::<u64>));
 
-  let mut pacman_args = vec![
-    String::from("-S"),
-    String::from("--noconfirm"),
-    String::from("--needed"),
-  ];
-  pacman_args.extend(pkgs.iter().map(|&s| s.to_string()));
-
-  let full_command = format!("pacman {}", pacman_args.join(" "));
   let mut cmd = Command::new("arch-chroot");
-  cmd.args(["/mnt", "bash", "-c", &full_command]);
+  cmd.arg("/mnt");
+  cmd.arg("pacman");
+  cmd.args(["-S", "--noconfirm", "--needed"]);
+  cmd.args(pkgs);
 
   exec_with_progress(
     cmd,
@@ -412,71 +359,7 @@ pub fn install_with_config(pkgs: Vec<&str>, config: &ProgressConfig) -> Result<(
     &progress_bars,
     &total_packages,
     config,
-    log_path,
-  )
-}
-
-/// Find available AUR helper
-fn find_aur_helper() -> Result<String, InstallError> {
-  let aur_helpers = ["prism", "paru", "yay", "trizen"];
-
-  for helper in aur_helpers {
-    if let Ok(output) = exec_chroot_with_output("which", vec![helper.to_string()])
-      && output.status.success()
-    {
-      log::info!("Using AUR helper: {helper}");
-      return Ok(helper.to_string());
-    }
-  }
-
-  Err(InstallError::PackageNotFound(
-    "No AUR helper found".to_string(),
-  ))
-}
-
-/// Install AUR packages
-pub fn install_aur(pkgs: Vec<&str>) -> Result<(), InstallError> {
-  install_aur_with_config(pkgs, &ProgressConfig::default())
-}
-
-/// Install AUR packages with custom configuration
-pub fn install_aur_with_config(
-  pkgs: Vec<&str>,
-  config: &ProgressConfig,
-) -> Result<(), InstallError> {
-  if pkgs.is_empty() {
-    return Ok(());
-  }
-
-  validate_packages(&pkgs)?;
-
-  if config.detailed_logging {
-    log::info!("Installing AUR packages: {}", pkgs.join(", "));
-  }
-
-  let helper = find_aur_helper()?;
-  let log_path = "/tmp/crystallize-aur.log";
-  let log = File::create(log_path)?;
-
-  let multi_progress = MultiProgress::new();
-  let progress_bars = ProgressBars::new_aur(&multi_progress, config);
-  let total_packages = Arc::new(Mutex::new(None::<u64>));
-
-  let mut helper_args = vec![String::from("-S"), String::from("--noconfirm")];
-  helper_args.extend(pkgs.iter().map(|&s| s.to_string()));
-
-  let full_command = format!("{} {}", helper, helper_args.join(" "));
-  let mut cmd = Command::new("arch-chroot");
-  cmd.args(["/mnt", "bash", "-c", &full_command]);
-
-  exec_with_progress(
-    cmd,
-    &format!("Install AUR packages {} with {}", pkgs.join(", "), helper),
-    &log,
-    &progress_bars,
-    &total_packages,
-    config,
-    log_path,
+    log_path.to_str().unwrap(),
   )
 }
 
@@ -737,19 +620,14 @@ fn process_package_line(
 pub fn install_multiple_categories(
   base_pkgs: Vec<&str>,
   regular_pkgs: Vec<&str>,
-  aur_pkgs: Vec<&str>,
   config: &ProgressConfig,
 ) -> Result<(), InstallError> {
   if !base_pkgs.is_empty() {
-    install_base_with_config(base_pkgs, config)?;
+    install_base_with_config(&base_pkgs, config)?;
   }
 
   if !regular_pkgs.is_empty() {
-    install_with_config(regular_pkgs, config)?;
-  }
-
-  if !aur_pkgs.is_empty() {
-    install_aur_with_config(aur_pkgs, config)?;
+    install_with_config(&regular_pkgs, config)?;
   }
 
   Ok(())
@@ -759,12 +637,12 @@ pub fn install_multiple_categories(
 pub fn check_installed(pkgs: &[&str]) -> Result<Vec<String>, InstallError> {
   let not_installed = pkgs
     .iter()
-    .filter(|&pkg| {
-      match exec_chroot_with_output("pacman", vec![String::from("-Q"), pkg.to_string()]) {
+    .filter(
+      |&pkg| match exec_chroot_with_output("pacman", &["-Q", pkg]) {
         Ok(output) => !output.status.success(),
         Err(_) => true,
-      }
-    })
+      },
+    )
     .map(|&pkg| pkg.to_string())
     .collect();
 

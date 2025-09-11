@@ -69,8 +69,10 @@ pub enum DesktopSetup {
   Gnome,
   #[clap(name = "Plasma", aliases = ["KDE"])]
   Plasma,
-  #[clap(name = "Hyprland")]
-  Hyprland,
+  #[clap(name = "Cosmic")]
+  Cosmic,
+  #[clap(name = "Cinnamon")]
+  Cinnamon,
   #[clap(name = "None", aliases = ["None/DIY"])]
   None,
 }
