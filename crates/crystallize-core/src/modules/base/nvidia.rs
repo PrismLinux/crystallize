@@ -1,5 +1,14 @@
 use crate::utils::install::{self, InstallError};
 
+// --------- [ TODO ] ---------
+// Need to try later: `https://github.com/Frogging-Family/nvidia-all`.
+//
+// Currently it is not in the Chaotic AUR repo. Might be better to add to our own repo.
+// Also it supports more cards/drivers.
+//
+// But for now, this is sufficient for the newest NVIDIA cards.
+// ----------------------------
+
 pub fn install_nvidia() -> Result<(), Box<dyn std::error::Error>> {
   install::install(&[
     "dkms",
