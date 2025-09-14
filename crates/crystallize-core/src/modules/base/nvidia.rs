@@ -395,7 +395,7 @@ mod integration_tests {
   use super::*;
 
   #[test]
-  #[ignore] // Use `cargo test -- --ignored` to run this test
+  #[ignore = "Real GPU Test"] // Use `cargo test -- --ignored` to run this test
   fn test_actual_gpu_detection() {
     // This test will only work on systems with NVIDIA GPUs
     // and requires lspci to be installed

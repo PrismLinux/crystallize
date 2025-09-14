@@ -1,3 +1,4 @@
+#[allow(clippy::multiple_crate_versions)]
 pub mod cli;
 pub mod config;
 pub mod modules;

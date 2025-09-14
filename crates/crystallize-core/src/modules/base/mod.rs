@@ -65,7 +65,7 @@ pub fn install_base_packages(kernel: &str) -> Result<(), Box<dyn std::error::Err
   packages.push(kernel_pkg);
   packages.push(&headers);
 
-  install::install_base(packages)?;
+  install::install_base(&packages)?;
 
   // Copy pacman configuration
   if let Err(e) = files::copy_file("/etc/pacman.conf", "/mnt/etc/pacman.conf") {
@@ -174,12 +174,6 @@ pub fn install_zram(size: u64) -> Result<(), Box<dyn std::error::Error>> {
   }
 
   log::info!("ZRAM configuration complete");
-  Ok(())
-}
-
-pub fn install_homemgr() -> Result<(), Box<dyn std::error::Error>> {
-  log::info!("Installing Nix package manager");
-  install::install(&["nix"])?;
   Ok(())
 }
 

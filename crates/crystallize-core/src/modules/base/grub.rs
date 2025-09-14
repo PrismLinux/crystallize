@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::utils::{
   crash,
@@ -53,7 +53,7 @@ fn install_main_efi_bootloader(efi_str: &str) {
       "grub-install",
       &[
         "--target=x86_64-efi",
-        &format!("--efi-directory={}", efi_str),
+        &format!("--efi-directory={efi_str}"),
         "--bootloader-id=PrismLinux",
         "--recheck",
       ],
@@ -69,7 +69,7 @@ fn install_fallback_efi_bootloader(efi_str: &str) {
       "grub-install",
       &[
         "--target=x86_64-efi",
-        &format!("--efi-directory={}", efi_str),
+        &format!("--efi-directory={efi_str}"),
         "--bootloader-id=PrismLinux-fallback",
         "--removable",
         "--recheck",
@@ -128,13 +128,13 @@ pub fn install_bootloader_efi(efidir: &PathBuf) -> Result<(), Box<dyn std::error
   Ok(())
 }
 
-pub fn install_bootloader_legacy(device: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+pub fn install_bootloader_legacy(device: &Path) -> Result<(), Box<dyn std::error::Error>> {
   // Install required packages
   install::install(GRUB_LEGACY_PACKAGES)?;
 
   // Validate device exists
   if !device.exists() {
-    crash(format!("The device {device:?} does not exist"), 1);
+    crash(format!("The device {} does not exist", device.display()), 1);
   }
 
   let device_str = device.to_string_lossy();

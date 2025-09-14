@@ -15,7 +15,7 @@ pub fn exec_chroot(
     format!("{} {}", command, args.join(" "))
   };
 
-  log::debug!("Executing in chroot: {}", full_command);
+  log::debug!("Executing in chroot: {full_command}");
 
   Command::new("arch-chroot")
     .args(["/mnt", "bash", "-c", &full_command])
@@ -32,7 +32,7 @@ pub fn exec_chroot_with_output(
     format!("{} {}", command, args.join(" "))
   };
 
-  log::debug!("Executing in chroot with output: {}", full_command);
+  log::debug!("Executing in chroot with output: {full_command}");
 
   Command::new("arch-chroot")
     .args(["/mnt", "bash", "-c", &full_command])

@@ -170,16 +170,19 @@ pub fn create_directory(path: &str) -> std::io::Result<()> {
 }
 
 /// Check if a file or directory exists
+#[must_use]
 pub fn exists(path: &str) -> bool {
   Path::new(path).exists()
 }
 
 /// Check if path is a directory
+#[must_use]
 pub fn is_directory(path: &str) -> bool {
   Path::new(path).is_dir()
 }
 
 /// Check if path is a file
+#[must_use]
 pub fn is_file(path: &str) -> bool {
   Path::new(path).is_file()
 }

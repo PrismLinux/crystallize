@@ -6,7 +6,7 @@ pub fn set_timezone(timezone: &str) {
       "ln",
       &[
         "-sf",
-        &format!("/usr/share/zoneinfo/{}", timezone),
+        &format!("/usr/share/zoneinfo/{timezone}"),
         "/etc/localtime",
       ],
     ),

@@ -1,5 +1,5 @@
 use log;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::{
   cli::{self, PartitionMode},
@@ -60,12 +60,12 @@ impl FilesystemType {
   }
 
   /// Check if filesystem requires formatting
-  fn needs_formatting(&self) -> bool {
+  const fn needs_formatting(&self) -> bool {
     !matches!(self, Self::NoFormat)
   }
 
   /// Get display name for logging
-  fn display_name(&self) -> &'static str {
+  const fn display_name(&self) -> &'static str {
     match self {
       Self::Ext4 => "ext4",
       Self::Fat32 => "fat32",
@@ -112,14 +112,17 @@ impl DeviceParser {
   }
 
   fn parse_nvme_mmc(blockdevice: &str) -> (String, String) {
-    if let Some(p_pos) = blockdevice.rfind('p') {
-      let device_part = &blockdevice[..p_pos];
-      let partition_part = &blockdevice[p_pos + 1..];
-      (device_part.to_string(), partition_part.to_string())
-    } else {
-      log::warn!("Could not parse NVMe/MMC device partition: {blockdevice}");
-      (blockdevice.to_string(), "1".to_string())
-    }
+    blockdevice.rfind('p').map_or_else(
+      || {
+        log::warn!("Could not parse NVMe/MMC device partition: {blockdevice}");
+        (blockdevice.to_string(), "1".to_string())
+      },
+      |p_pos| {
+        let device_part = &blockdevice[..p_pos];
+        let partition_part = &blockdevice[p_pos + 1..];
+        (device_part.to_string(), partition_part.to_string())
+      },
+    )
   }
 
   fn parse_regular(blockdevice: &str) -> (String, String) {
@@ -392,7 +395,7 @@ impl FilesystemFormatter {
     log::info!("Formatting {blockdevice} as {}", fs_type.display_name());
 
     let args = fs_type.args();
-    let mut all_args: Vec<&str> = args.to_vec();
+    let mut all_args: Vec<&str> = args.clone();
     all_args.push(blockdevice);
 
     exec_eval(
@@ -471,21 +474,24 @@ pub fn fmt_mount(mountpoint: &str, filesystem: &str, blockdevice: &str, efi: boo
 }
 
 pub fn partition(
-  device: &PathBuf,
+  device: &Path,
   mode: &PartitionMode,
   efi: bool,
   partitions: &mut Vec<cli::Partition>,
 ) {
-  log::info!("Starting partitioning process - Mode: {mode:?}, EFI: {efi}, Device: {device:?}");
+  log::info!(
+    "Starting partitioning process - Mode: {mode:?}, EFI: {efi}, Device: {}",
+    device.display()
+  );
 
   MountManager::cleanup();
 
   match mode {
     PartitionMode::Auto => {
       if !device.exists() {
-        crash(format!("The device {device:?} doesn't exist"), 1);
+        crash(format!("The device {} doesn't exist", device.display()), 1);
       }
-      log::info!("Automatically partitioning {device:?}");
+      log::info!("Automatically partitioning {}", device.display());
 
       // Create partition table and partitions
       PartitionTable::create(device, efi);

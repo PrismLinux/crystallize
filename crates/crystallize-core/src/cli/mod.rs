@@ -37,7 +37,7 @@ pub struct Partition {
 
 impl Partition {
   #[must_use]
-  pub fn new(mountpoint: String, blockdevice: String, filesystem: String) -> Self {
+  pub const fn new(mountpoint: String, blockdevice: String, filesystem: String) -> Self {
     Self {
       mountpoint,
       blockdevice,

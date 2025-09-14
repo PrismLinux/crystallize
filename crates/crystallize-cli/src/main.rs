@@ -1,3 +1,4 @@
+#![allow(clippy::multiple_crate_versions)]
 use clap::Parser;
 use crystallize_core::{
   cli::{Command, Opt},

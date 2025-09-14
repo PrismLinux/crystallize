@@ -23,16 +23,16 @@ pub enum InstallError {
 impl std::fmt::Display for InstallError {
   fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      InstallError::PackageNotFound(pkg) => write!(f, "Package not found: {pkg}"),
-      InstallError::DependencyConflict(msg) => write!(f, "Dependency conflict: {msg}"),
-      InstallError::NetworkError(msg) => write!(f, "Network error: {msg}"),
-      InstallError::DiskSpaceError => write!(f, "Insufficient disk space"),
-      InstallError::PermissionError => write!(f, "Permission denied"),
-      InstallError::DatabaseError(msg) => write!(f, "Database error: {msg}"),
-      InstallError::ValidationError(msg) => write!(f, "Validation error: {msg}"),
-      InstallError::IoError(msg) => write!(f, "I/O error: {msg}"),
-      InstallError::PasswordHashError(msg) => write!(f, "Password hashing error: {msg}"),
-      InstallError::UnknownError(code, msg) => {
+      Self::PackageNotFound(pkg) => write!(f, "Package not found: {pkg}"),
+      Self::DependencyConflict(msg) => write!(f, "Dependency conflict: {msg}"),
+      Self::NetworkError(msg) => write!(f, "Network error: {msg}"),
+      Self::DiskSpaceError => write!(f, "Insufficient disk space"),
+      Self::PermissionError => write!(f, "Permission denied"),
+      Self::DatabaseError(msg) => write!(f, "Database error: {msg}"),
+      Self::ValidationError(msg) => write!(f, "Validation error: {msg}"),
+      Self::IoError(msg) => write!(f, "I/O error: {msg}"),
+      Self::PasswordHashError(msg) => write!(f, "Password hashing error: {msg}"),
+      Self::UnknownError(code, msg) => {
         write!(f, "Unknown error (exit code {code}): {msg}")
       }
     }
@@ -43,44 +43,52 @@ impl std::error::Error for InstallError {}
 
 impl From<std::io::Error> for InstallError {
   fn from(error: std::io::Error) -> Self {
-    InstallError::IoError(error.to_string())
+    Self::IoError(error.to_string())
   }
 }
 
 /// Helper function to suggest solutions based on error type
+#[must_use]
 pub fn suggest_solution(error: &InstallError) -> String {
   match error {
-        InstallError::PackageNotFound(pkg) => {
-            format!("Try:\n1. Check package name spelling: pacman -Ss {pkg}\n2. Update databases: pacman -Sy\n3. Check if it's an AUR package")
-        }
-        InstallError::DependencyConflict(_) => {
-            "Try:\n1. Update system first: pacman -Syu\n2. Remove conflicting packages manually\n3. Use --overwrite flag if safe".to_string()
-        }
-        InstallError::NetworkError(_) => {
-            "Try:\n1. Check internet connection\n2. Change mirror: reflector --latest 5 --sort rate --save /etc/pacman.d/mirrorlist\n3. Wait and retry later".to_string()
-        }
-        InstallError::DiskSpaceError => {
-            "Try:\n1. Free up disk space: pacman -Sc\n2. Check available space: df -h\n3. Clean package cache".to_string()
-        }
-        InstallError::PermissionError => {
-            "Try:\n1. Check if running as root\n2. Verify mount points are correct\n3. Check filesystem permissions".to_string()
-        }
-        InstallError::DatabaseError(_) => {
-            "Try:\n1. Refresh databases: pacman -Sy\n2. Update keyring: pacman -S archlinux-keyring\n3. Clear cache: pacman -Sc".to_string()
-        }
-        InstallError::ValidationError(_) => {
-            "Fix the package name validation issues and try again.".to_string()
-        }
-        InstallError::IoError(_) => {
-            "Check file permissions, disk space, and system resources.".to_string()
-        }
-        InstallError::PasswordHashError(_) => {
-          "Try:\n1. Use a different password with standard ASCII characters\n2. Check system locale settings\n3. Restart the installation process".to_string()
-        }
-        InstallError::UnknownError(_, _) => {
-            "Check the log file for detailed error information and try installing packages individually.".to_string()
-        }
+    InstallError::PackageNotFound(pkg) => format!(
+      "Try:\n1. Check package name spelling: pacman -Ss {pkg}\n2. Update databases: pacman -Sy\n3. Check if it's an AUR package"
+    ),
+    InstallError::DependencyConflict(_) => {
+      "Try:\n1. Update system first: pacman -Syu\n2. Remove conflicting packages manually\n3. Use --overwrite flag if safe"
+        .to_string()
     }
+    InstallError::NetworkError(_) => {
+      "Try:\n1. Check internet connection\n2. Change mirror: reflector --latest 5 --sort rate --save /etc/pacman.d/mirrorlist\n3. Wait and retry later"
+        .to_string()
+    }
+    InstallError::DiskSpaceError => {
+      "Try:\n1. Free up disk space: pacman -Sc\n2. Check available space: df -h\n3. Clean package cache"
+        .to_string()
+    }
+    InstallError::PermissionError => {
+      "Try:\n1. Check if running as root\n2. Verify mount points are correct\n3. Check filesystem permissions"
+        .to_string()
+    }
+    InstallError::DatabaseError(_) => {
+      "Try:\n1. Refresh databases: pacman -Sy\n2. Update keyring: pacman -S archlinux-keyring\n3. Clear cache: pacman -Sc"
+        .to_string()
+    }
+    InstallError::ValidationError(_) => {
+      "Fix the package name validation issues and try again.".to_string()
+    }
+    InstallError::IoError(_) => {
+      "Check file permissions, disk space, and system resources.".to_string()
+    }
+    InstallError::PasswordHashError(_) => {
+      "Try:\n1. Use a different password with standard ASCII characters\n2. Check system locale settings\n3. Restart the installation process"
+        .to_string()
+    }
+    InstallError::UnknownError(_, _) => {
+      "Check the log file for detailed error information and try installing packages individually."
+        .to_string()
+    }
+  }
 }
 
 /// Configuration for progress tracking
@@ -162,7 +170,9 @@ impl ProgressBars {
     self.download.set_length(total);
     self.download.set_style(
       ProgressStyle::default_bar()
-        .template("{spinner:.cyan} [{elapsed_precise}] [{bar:40.cyan}] {pos}/{len} Downloading")
+        .template(
+          "{{spinner:.cyan}} [{{elapsed_precise}}] [{{bar:40.cyan}}] {{pos}}/{{len}} Downloading",
+        )
         .unwrap()
         .progress_chars("#>-"),
     );
@@ -171,7 +181,9 @@ impl ProgressBars {
       build.set_length(total);
       build.set_style(
         ProgressStyle::default_bar()
-          .template("{spinner:.yellow} [{elapsed_precise}] [{bar:40.yellow}] {pos}/{len} Building")
+          .template(
+            "{{spinner:.yellow}} [{{elapsed_precise}}] [{{bar:40.yellow}}] {{pos}}/{{len}} Building"
+          )
           .unwrap()
           .progress_chars("#>-"),
       );
@@ -180,7 +192,9 @@ impl ProgressBars {
     self.install.set_length(total);
     self.install.set_style(
       ProgressStyle::default_bar()
-        .template("{spinner:.green} [{elapsed_precise}] [{bar:40.green}] {pos}/{len} Installing")
+        .template(
+          "{{spinner:.green}} [{{elapsed_precise}}] [{{bar:40.green}}] {{pos}}/{{len}} Installing",
+        )
         .unwrap()
         .progress_chars("#>-"),
     );
@@ -283,15 +297,12 @@ fn validate_packages(pkgs: &[&str]) -> Result<(), InstallError> {
 }
 
 /// Install packages using pacstrap with progress tracking
-pub fn install_base(pkgs: Vec<&str>) -> Result<(), InstallError> {
-  install_base_with_config(&pkgs, &ProgressConfig::default())
+pub fn install_base(pkgs: &[&str]) -> Result<(), InstallError> {
+  install_base_with_config(pkgs, &ProgressConfig::default())
 }
 
 /// Install packages using pacstrap with progress tracking
-pub fn install_base_with_config(
-  pkgs: &[&str],
-  config: &ProgressConfig,
-) -> Result<(), InstallError> {
+fn install_base_with_config(pkgs: &[&str], config: &ProgressConfig) -> Result<(), InstallError> {
   if pkgs.is_empty() {
     return Ok(());
   }
@@ -327,7 +338,7 @@ pub fn install(pkgs: &[&str]) -> Result<(), InstallError> {
 }
 
 /// Install packages in chroot with custom configuration
-pub fn install_with_config(pkgs: &[&str], config: &ProgressConfig) -> Result<(), InstallError> {
+fn install_with_config(pkgs: &[&str], config: &ProgressConfig) -> Result<(), InstallError> {
   if pkgs.is_empty() {
     return Ok(());
   }
@@ -587,9 +598,8 @@ fn process_package_line(
     && let Some(captures) = regex.captures(&line_lower)
     && let Ok(total) = captures.get(1).unwrap().as_str().parse::<u64>()
   {
-    let mut total_guard = total_packages.lock().unwrap();
+    let total_guard = total_packages.lock().unwrap();
     if total_guard.is_none() {
-      *total_guard = Some(total);
       progress_bars.update_to_determinate(total);
     }
   }
@@ -618,16 +628,16 @@ fn process_package_line(
 
 /// Batch operations for efficiency
 pub fn install_multiple_categories(
-  base_pkgs: Vec<&str>,
-  regular_pkgs: Vec<&str>,
+  base_pkgs: &[&str],
+  regular_pkgs: &[&str],
   config: &ProgressConfig,
 ) -> Result<(), InstallError> {
   if !base_pkgs.is_empty() {
-    install_base_with_config(&base_pkgs, config)?;
+    install_base_with_config(base_pkgs, config)?;
   }
 
   if !regular_pkgs.is_empty() {
-    install_with_config(&regular_pkgs, config)?;
+    install_with_config(regular_pkgs, config)?;
   }
 
   Ok(())

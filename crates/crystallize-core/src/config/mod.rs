@@ -25,7 +25,6 @@ pub struct Config {
   extra_packages: Vec<String>,
   kernel: String,
   flatpak: bool,
-  nix: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -65,13 +64,13 @@ struct UserConfig {
 
 impl Config {
   pub fn from_file(path: &PathBuf) -> Result<Self> {
-    let content =
-      fs::read_to_string(path).with_context(|| format!("Failed to read config file: {path:?}"))?;
+    let content = fs::read_to_string(path)
+      .with_context(|| format!("Failed to read config file: {}", path.display()))?;
 
-    let config: Config = serde_json::from_str(&content)
-      .with_context(|| format!("Failed to parse config file: {path:?}"))?;
+    let config: Self = serde_json::from_str(&content)
+      .with_context(|| format!("Failed to parse config file: {}", path.display()))?;
 
-    log::debug!("Successfully loaded config from {path:?}");
+    log::debug!("Successfully loaded config from {}", path.display());
     Ok(config)
   }
 
@@ -115,13 +114,13 @@ impl Config {
     log::info!("Setting up base system...");
 
     // Ensure essential host system tools are available
-    self.ensure_host_tools();
+    Self::ensure_host_tools();
 
     // Install base packages first
     base::install_base_packages(&self.kernel.clone())?;
 
     // Setup the chroot environment after base packages are installed
-    self.prepare_chroot_environment();
+    Self::prepare_chroot_environment();
 
     // Now setup keyring inside the chroot where pacman-key exists
     base::setup_archlinux_keyring().context("Failed to setup keyring")?;
@@ -134,14 +133,10 @@ impl Config {
       base::install_flatpak()?;
     }
 
-    if self.nix {
-      base::install_homemgr()?;
-    }
-
     Ok(())
   }
 
-  fn ensure_host_tools(&self) {
+  fn ensure_host_tools() {
     log::debug!("Ensuring essential host tools are available");
 
     // Check for essential commands on the host system
@@ -160,7 +155,7 @@ impl Config {
     }
   }
 
-  fn prepare_chroot_environment(&self) {
+  fn prepare_chroot_environment() {
     log::debug!("Preparing chroot environment");
 
     // Create essential directories first
@@ -303,12 +298,12 @@ impl Config {
     }
 
     // Clean up mount points
-    self.cleanup_installation();
+    Self::cleanup_installation();
 
     Ok(())
   }
 
-  fn cleanup_installation(&self) {
+  fn cleanup_installation() {
     log::debug!("Cleaning up installation mounts");
 
     // Wait a moment for any pending operations to complete
