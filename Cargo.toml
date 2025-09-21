@@ -3,7 +3,6 @@ resolver = "2"
 members = [
   "crates/crystallize-cli",
   "crates/crystallize-core",
-  # "crates/crystallize-gui"
 ]
 default-members = ["crates/crystallize-cli"]
 

@@ -73,15 +73,15 @@ build_package:
 
           # Install package dependencies
           echo 'Installing package dependencies...'
-          pkgbuilder-builder deps
+          pkgbuild-builder deps
 
           # Build the package
           echo 'Building package...'
-          pkgbuilder-builder build
+          pkgbuild-builder build
 
           # Generate version info into the temporary artifacts directory
           echo 'Generating version info...'
-          pkgbuilder-builder version --output-file \"\${ARTIFACTS_DIR}/version.env\"
+          pkgbuild-builder version --output-file \"\${ARTIFACTS_DIR}/version.env\"
 
           # Validate the version.env file
           echo 'Validating version.env file:';
@@ -91,7 +91,7 @@ build_package:
 
           # Collect build artifacts into the temporary artifacts directory
           echo 'Collecting artifacts...'
-          pkgbuilder-builder artifacts --output-dir \"\${ARTIFACTS_DIR}\"
+          pkgbuild-builder artifacts --output-dir \"\${ARTIFACTS_DIR}\"
         "
 
     - echo "Moving artifacts to the final location..."
