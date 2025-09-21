@@ -33,11 +33,11 @@ pub(super) fn plasma() -> Result<(), Box<dyn std::error::Error>> {
   install(&[
     "prismlinux-plasma-settings",
     "sddm",
-    "rio",
+    "ghostty",
     "dolphin",
     "plasma-systemmonitor",
   ])?;
-  enable_service("sddm", "Enable sddm");
+  enable_service("sddm", "Enable SDDM");
   Ok(())
 }
 
@@ -52,49 +52,30 @@ pub(super) fn gnome() -> Result<(), Box<dyn std::error::Error>> {
     "gdm",
   ])?;
 
-  enable_service("gdm", "Enabling gdm");
+  enable_service("gdm", "Enabling GDM");
   Ok(())
 }
 
 pub(super) fn cosmic() -> Result<(), Box<dyn std::error::Error>> {
   install(&[
-    "cosmic-app-library",
-    "cosmic-applets",
-    "cosmic-bg",
+    "prismlinux-cosmic-settings",
     "cosmic-files",
     "cosmic-greeter",
-    "cosmic-idle",
-    "cosmic-launcher",
-    "cosmic-notifications",
-    "cosmic-osd",
-    "cosmic-panel",
-    "cosmic-randr",
-    "cosmic-screenshot",
-    "cosmic-session",
-    "cosmic-settings",
-    "cosmic-settings-daemon",
-    "cosmic-wallpapers",
-    "cosmic-workspaces",
-    "xdg-desktop-portal-cosmic",
+    "ghossty",
   ])?;
 
-  enable_service("gdm", "Enabling gdm");
+  enable_service("cosmic-greeter", "Enabling Cosmic Greeter");
   Ok(())
 }
 
 pub(super) fn cinnamon() -> Result<(), Box<dyn std::error::Error>> {
   install(&[
-    "cinnamon",
-    "mint-themes",
-    "mint-y-icons",
-    "mint-x-icons",
+    "prismlinux-cinnamon-settings",
     "nemo",
-    "gnome-shell",
-    "loupe",
+    "ghossty",
     "lightdm",
     "lightdm-gtk-greeter",
     "lightdm-gtk-greeter-settings",
-    "metacity"
   ])?;
 
   files_eval(
@@ -105,7 +86,7 @@ pub(super) fn cinnamon() -> Result<(), Box<dyn std::error::Error>> {
     "Add lightdm greeter",
   );
 
-  enable_service("lightdm", "Enabling gdm");
+  enable_service("lightdm", "Enabling LightDM");
   Ok(())
 }
 

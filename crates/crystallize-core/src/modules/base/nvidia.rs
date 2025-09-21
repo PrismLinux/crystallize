@@ -49,7 +49,7 @@ fn detect_nvidia_gpu() -> Result<Option<String>, Box<dyn std::error::Error>> {
     if line.to_lowercase().contains("nvidia")
       && (line.to_lowercase().contains("vga") || line.to_lowercase().contains("3d"))
     {
-      return Ok(Some(line.to_string()));
+      return Ok(Some(String::from(line)));
     }
   }
 
@@ -115,7 +115,7 @@ pub fn install_nvidia() -> Result<(), Box<dyn std::error::Error>> {
   println!("Detecting NVIDIA GPU...");
 
   let gpu_info = detect_nvidia_gpu()?
-    .ok_or_else(|| InstallError::IoError("No NVIDIA GPU detected".to_string()))?;
+    .ok_or_else(|| InstallError::IoError(String::from("No NVIDIA GPU detected")))?;
 
   println!("Detected NVIDIA GPU: {gpu_info}");
 
@@ -136,7 +136,7 @@ pub fn install_nvidia() -> Result<(), Box<dyn std::error::Error>> {
       if line.starts_with("GRUB_CMDLINE_LINUX_DEFAULT=") {
         grub_conf_found = true;
         if line.contains("nvidia-drm.modeset=1") {
-          line.to_string() // Already there, do nothing
+          String::from(line) // Already there, do nothing
         } else {
           line.replace(
             "GRUB_CMDLINE_LINUX_DEFAULT=\"",
@@ -144,13 +144,15 @@ pub fn install_nvidia() -> Result<(), Box<dyn std::error::Error>> {
           )
         }
       } else {
-        line.to_string()
+        String::from(line)
       }
     })
     .collect();
 
   if !grub_conf_found {
-    lines.push("GRUB_CMDLINE_LINUX_DEFAULT=\"nvidia-drm.modeset=1\"".to_string());
+    lines.push(String::from(
+      "GRUB_CMDLINE_LINUX_DEFAULT=\"nvidia-drm.modeset=1\"",
+    ));
   }
 
   let new_grub_content = lines.join("\n");
@@ -167,16 +169,18 @@ pub fn install_nvidia() -> Result<(), Box<dyn std::error::Error>> {
       .map(|line| {
         if line.trim_start().starts_with("MODULES=") && !line.trim_start().starts_with('#') {
           mkinitcpio_conf_found = true;
-          "MODULES=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)".to_string()
+          String::from("MODULES=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)")
         } else {
-          line.to_string()
+          String::from(line)
         }
       })
       .collect();
 
     let mut final_lines = mapped_lines;
     if !mkinitcpio_conf_found {
-      final_lines.push("MODULES=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)".to_string());
+      final_lines.push(String::from(
+        "MODULES=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)",
+      ));
     }
 
     let new_initcpio_content = final_lines.join("\n");
@@ -189,6 +193,7 @@ pub fn install_nvidia() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 mod tests {
+  #[cfg(test)]
   use super::*;
 
   #[test]
@@ -413,7 +418,6 @@ mod integration_tests {
       }
       Err(e) => {
         println!("Error detecting GPU: {e}");
-        // Don't fail the test if lspci isn't available
       }
     }
   }
