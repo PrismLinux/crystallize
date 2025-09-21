@@ -48,16 +48,16 @@ build_package:
     - echo "Copying project source to build directory..."
     - cp -r . "$BUILD_DIR/"
     - chown -R 1000:1000 "$BUILD_DIR" # Ensure copied files are owned by builder
-    
+
     - ln -sf "$CI_PROJECT_DIR/.ccache" "$CCACHE_DIR"
-    
+
     - |
       sudo \
         -u builder -H \
         --preserve-env=CI_COMMIT_TAG,CI_JOB_ID \
         bash -c "
           set -ex
-          
+
           # Define paths from the builder's perspective
           BUILD_DIR='/home/builder/build'
           ARTIFACTS_DIR='/home/builder/artifacts'
@@ -73,16 +73,16 @@ build_package:
 
           # Install package dependencies
           echo 'Installing package dependencies...'
-          builder deps
-          
+          pkgbuilder-builder deps
+
           # Build the package
           echo 'Building package...'
-          builder build
+          pkgbuilder-builder build
 
           # Generate version info into the temporary artifacts directory
           echo 'Generating version info...'
-          builder version --output-file \"\${ARTIFACTS_DIR}/version.env\"
-           
+          pkgbuilder-builder version --output-file \"\${ARTIFACTS_DIR}/version.env\"
+
           # Validate the version.env file
           echo 'Validating version.env file:';
           cat \"\${ARTIFACTS_DIR}/version.env\";
@@ -91,9 +91,9 @@ build_package:
 
           # Collect build artifacts into the temporary artifacts directory
           echo 'Collecting artifacts...'
-          builder artifacts --output-dir \"\${ARTIFACTS_DIR}\"
+          pkgbuilder-builder artifacts --output-dir \"\${ARTIFACTS_DIR}\"
         "
-    
+
     - echo "Moving artifacts to the final location..."
     - mv "$BUILD_ARTIFACTS_DIR"/* "$CI_PROJECT_DIR/$ARTIFACTS_DIR/"
 
@@ -128,20 +128,20 @@ release_job:
   script:
     - |
       set -e
-      
+
       # Validate version.env exists and is readable
       if [[ ! -f "$ARTIFACTS_DIR/version.env" ]]; then
         echo "ERROR: version.env not found!"
         exit 1
       fi
-      
+
       echo "Contents of version.env:"
       cat "$ARTIFACTS_DIR/version.env"
-      
+
       # Source the version file with validation
       echo "Sourcing version.env..."
       source "$ARTIFACTS_DIR/version.env"
-      
+
       # Validate required variables
       if [[ -z "$FULL_VERSION" || -z "$PACKAGE_NAME" || -z "$ARCH" ]]; then
         echo "ERROR: Missing required variables in version.env"
@@ -150,19 +150,19 @@ release_job:
         echo "ARCH: $ARCH"
         exit 1
       fi
-      
+
       echo "Creating release for version: $FULL_VERSION"
-      
+
       DESCRIPTION="## Package Information
-      
+
       - **Package Name:** $PACKAGE_NAME
-      - **Version:** $FULL_VERSION  
+      - **Version:** $FULL_VERSION
       - **Architecture:** $ARCH
       - **Build Date:** $BUILD_DATE
       - **Build Job:** [$BUILD_JOB_ID]($CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID)
-      
+
       ## Files in this release"
-      
+
       ASSET_ARGS=""
       for file in "$ARTIFACTS_DIR"/*.pkg.tar.*; do
         if [[ -f "$file" ]]; then
@@ -173,7 +173,7 @@ release_job:
       - 📦 [$filename]($CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID/artifacts/raw/$ARTIFACTS_DIR/$filename)"
         fi
       done
-      
+
       for file in "$ARTIFACTS_DIR"/{PKGBUILD,*.log}; do
         if [[ -f "$file" ]]; then
           filename=$(basename "$file")
@@ -182,12 +182,12 @@ release_job:
       - 📄 [$filename]($CI_PROJECT_URL/-/jobs/$BUILD_JOB_ID/artifacts/raw/$ARTIFACTS_DIR/$filename)"
         fi
       done
-      
+
       if [[ -z "$ASSET_ARGS" ]]; then
         echo "No package files found in artifacts!"
         exit 1
       fi
-      
+
       eval "release-cli create \
         --name 'Release $TAG_VERSION' \
         --tag-name '$CI_COMMIT_TAG' \
