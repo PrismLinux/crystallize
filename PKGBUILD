@@ -1,17 +1,18 @@
 # Maintainer: CrystalNetwork Studio
 pkgname=crystallize-cli
 pkgver=0.3.0
-pkgrel=1
+pkgrel=2
 pkgdesc="CLI version of Crystallize Installer"
 arch=('x86_64')
 url="https://gitlab.com/crystalnetwork-studio/linux/prismlinux/os-build/crystallize"
 license=('MIT')
 
-makedepends=('rust' 'cargo')
+makedepends=('go' 'make')
 depends=('arch-install-scripts' 'util-linux')
 
 build() {
-  cargo b -r --locked
+  cd ..
+  make build
 }
 
 package() {
@@ -20,5 +21,5 @@ package() {
   install -d "${pkgdir}/usr/bin"
 
   # Install the compiled binary
-  install -m755 "./target/release/${pkgname}" "${pkgdir}/usr/bin/"
+  install -m755 "bin/${pkgname}" "${pkgdir}/usr/bin/"
 }

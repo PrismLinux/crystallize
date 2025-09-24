@@ -1,2 +1,4 @@
 /bin
 crystallize-cli.fish
+/pkg
+/*-x86_64.pkg.tar.zst
