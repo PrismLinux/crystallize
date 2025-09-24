@@ -1,8 +1,2 @@
-.idea
-.direnv
-.cargo
-
-/target
-
-pkg
-crystallize-cli-*-x86_64.pkg.tar.zst
+/bin
+crystallize-cli.fish
