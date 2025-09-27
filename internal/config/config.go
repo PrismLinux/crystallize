@@ -18,18 +18,18 @@ import (
 
 // Config represents the installation configuration
 type Config struct {
-	Partition     PartitionConfig  `json:"partition"`
-	Bootloader    BootloaderConfig `json:"bootloader"`
-	Locale        LocaleConfig     `json:"locale"`
-	Networking    NetworkConfig    `json:"networking"`
-	Users         []UserConfig     `json:"users"`
-	RootPass      string           `json:"rootpass"`
-	Desktop       string           `json:"desktop"`
-	Zram          uint64           `json:"zram"`
-	Nvidia        bool             `json:"nvidia"`
-	ExtraPackages []string         `json:"extra_packages"`
-	Kernel        string           `json:"kernel"`
-	Flatpak       bool             `json:"flatpak"`
+	Partition  PartitionConfig  `json:"partition"`
+	Bootloader BootloaderConfig `json:"bootloader"`
+	Locale     LocaleConfig     `json:"locale"`
+	Networking NetworkConfig    `json:"networking"`
+	Users      []UserConfig     `json:"users"`
+	RootPass   string           `json:"rootpass"`
+	Desktop    string           `json:"desktop"`
+	Zram       uint64           `json:"zram"`
+	// Nvidia        bool             `json:"nvidia"`
+	ExtraPackages []string `json:"extra_packages"`
+	Kernel        string   `json:"kernel"`
+	Flatpak       bool     `json:"flatpak"`
 }
 
 // PartitionConfig contains partition configuration
@@ -82,6 +82,10 @@ func ReadConfig(configPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
+
+	// Defer the cleanup function. It will now run regardless of whether
+	// the installation succeeds or fails, ensuring mount points are cleaned up.
+	defer config.cleanupInstallation()
 
 	utils.LogInfo("Starting installation process...")
 
@@ -338,11 +342,8 @@ func (c *Config) createUsers() error {
 func (c *Config) finalizeInstallation() error {
 	utils.LogInfo("Finalizing installation...")
 
-	if c.Nvidia {
-		utils.LogInfo("Installing NVIDIA drivers")
-		if err := base.InstallNvidia(); err != nil {
-			return fmt.Errorf("failed to install nvidia drivers: %w", err)
-		}
+	if err := base.InstallNvidia(); err != nil {
+		return fmt.Errorf("failed to install nvidia drivers: %w", err)
 	}
 
 	// Setup ZRAM
@@ -350,6 +351,7 @@ func (c *Config) finalizeInstallation() error {
 	if c.Zram != 0 {
 		zramInfo = fmt.Sprintf("%dMB", c.Zram)
 	}
+
 	utils.LogInfo("Configuring ZRAM: %s", zramInfo)
 	if err := base.InstallZram(c.Zram); err != nil {
 		return fmt.Errorf("failed to configure zram: %w", err)
@@ -363,21 +365,18 @@ func (c *Config) finalizeInstallation() error {
 		}
 	}
 
-	// Clean up mount points
-	c.cleanupInstallation()
-
 	return nil
 }
 
 // cleanupInstallation cleans up installation mounts
 func (c *Config) cleanupInstallation() {
-	utils.LogDebug("Cleaning up installation mounts")
+	utils.LogInfo("Cleaning up installation mounts...")
 
 	// Wait a moment for any pending operations to complete
 	time.Sleep(time.Second)
 
-	// Unmount in reverse order with multiple attempts if needed
-	mountPoints := []string{"/mnt/dev/pts", "/mnt/dev", "/mnt/proc", "/mnt/sys", "/mnt/boot"}
+	// Unmount in reverse order, including /mnt itself at the very end.
+	mountPoints := []string{"/mnt/dev/pts", "/mnt/dev", "/mnt/proc", "/mnt/sys", "/mnt/boot", "/mnt"}
 
 	for _, mountPoint := range mountPoints {
 		// Try normal unmount first
@@ -389,7 +388,7 @@ func (c *Config) cleanupInstallation() {
 			if err := utils.Exec("umount", "-l", mountPoint); err == nil {
 				utils.LogDebug("Successfully lazy unmounted: %s", mountPoint)
 			} else {
-				utils.LogDebug("Failed to unmount: %s (may not be mounted)", mountPoint)
+				utils.LogDebug("Failed to unmount: %s (may not be mounted or is busy)", mountPoint)
 			}
 		}
 

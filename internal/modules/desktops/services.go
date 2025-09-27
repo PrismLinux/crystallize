@@ -21,6 +21,7 @@ func installNetworkManager() error {
 	}
 	return nil
 }
+
 func installFirewalld() error {
 	if err := utils.Install([]string{"firewalld"}); err != nil {
 		return err

@@ -22,6 +22,10 @@ func installDesktopPackages() error {
 		"xdg-user-dirs",
 		"wpa_supplicant",
 		"xdg-utils",
+		"noto-fonts",
+		"noto-fonts-cjk",
+		"noto-fonts-emoji",
+		"noto-fonts-extra",
 	}
 	return utils.Install(packages)
 }
@@ -33,6 +37,7 @@ func installPlasma() error {
 		"prismlinux-plasma-settings",
 		"sddm",
 		"ghostty",
+		"gwenview",
 		"dolphin",
 		"plasma-systemmonitor",
 	}
@@ -65,6 +70,7 @@ func installCosmic() error {
 		"prismlinux-cosmic-settings",
 		"cosmic-files",
 		"cosmic-greeter",
+		"loupe",
 		"ghossty",
 	}
 	if err := utils.Install(packages); err != nil {
@@ -78,6 +84,7 @@ func installCinnamon() error {
 	packages := []string{
 		"prismlinux-cinnamon-settings",
 		"nemo",
+		"loupe",
 		"ghossty",
 		"lightdm",
 		"lightdm-gtk-greeter",

@@ -18,64 +18,50 @@ const (
 
 // InstallDesktopSetup installs the selected desktop environment
 func InstallDesktopSetup(desktopSetup DesktopSetup) error {
-	utils.LogDebug("Installing %v", desktopSetup)
+	utils.LogDebug("Starting desktop setup for: %v", desktopSetup)
 
-	if err := installNetworkManager(); err != nil {
-		return fmt.Errorf("failed to install NetworkManager: %w", err)
-	}
-
-	if err := installFirewalld(); err != nil {
-		return fmt.Errorf("failed to install Firewalld: %w", err)
-	}
-
-	// Install only the selected desktop environment and its specific packages
-	switch desktopSetup {
-	case DesktopGnome:
-		if err := installGraphics(); err != nil {
-			return err
-		}
-		if err := installDesktopPackages(); err != nil {
-			return err
-		}
-		if err := installGnome(); err != nil {
-			return err
-		}
-	case DesktopPlasma:
-		if err := installGraphics(); err != nil {
-			return err
-		}
-		if err := installDesktopPackages(); err != nil {
-			return err
-		}
-		if err := installPlasma(); err != nil {
-			return err
-		}
-	case DesktopCosmic:
-		if err := installGraphics(); err != nil {
-			return err
-		}
-		if err := installDesktopPackages(); err != nil {
-			return err
-		}
-		if err := installCosmic(); err != nil {
-			return err
-		}
-	case DesktopCinnamon:
-		if err := installGraphics(); err != nil {
-			return err
-		}
-		if err := installDesktopPackages(); err != nil {
-			return err
-		}
-		if err := installCinnamon(); err != nil {
-			return err
-		}
-	case DesktopNone:
-		utils.LogDebug("No desktop setup selected")
+	// Exit early if no desktop environment is selected
+	if desktopSetup == DesktopNone {
+		utils.LogInfo("No desktop setup selected, skipping.")
 		return nil
 	}
 
-	// Common services for all desktop environments
+	// Install common components for all graphical environments
+	if err := installNetworkManager(); err != nil {
+		return fmt.Errorf("failed to install NetworkManager: %w", err)
+	}
+	if err := installFirewalld(); err != nil {
+		return fmt.Errorf("failed to install Firewalld: %w", err)
+	}
+	if err := installGraphics(); err != nil {
+		return fmt.Errorf("failed to install graphics stack: %w", err)
+	}
+	if err := installDesktopPackages(); err != nil {
+		return fmt.Errorf("failed to install common desktop packages: %w", err)
+	}
+
+	// Install the specific desktop environment
+	utils.LogInfo("Installing %s environment...", desktopSetup)
+	var installErr error
+	switch desktopSetup {
+	case DesktopGnome:
+		installErr = installGnome()
+	case DesktopPlasma:
+		installErr = installPlasma()
+	case DesktopCosmic:
+		installErr = installCosmic()
+	case DesktopCinnamon:
+		installErr = installCinnamon()
+	default:
+		// This case handles any unsupported desktop strings
+		return fmt.Errorf("unsupported desktop environment: %s", desktopSetup)
+	}
+
+	if installErr != nil {
+		return fmt.Errorf("failed to install %s: %w", desktopSetup, installErr)
+	}
+
+	// Install common services
 	if err := installBluetooth(); err != nil {
 		return fmt.Errorf("failed to install Bluetooth: %w", err)
 	}
@@ -86,5 +72,6 @@ func InstallDesktopSetup(desktopSetup DesktopSetup) error {
 		return fmt.Errorf("failed to install Power Manager: %w", err)
 	}
 
+	utils.LogInfo("Desktop setup completed successfully.")
 	return nil
 }

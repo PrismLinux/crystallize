@@ -131,7 +131,8 @@ func InstallNvidia() error {
 
 	gpuInfo, err := detectNvidiaGPU()
 	if err != nil {
-		return fmt.Errorf("no NVIDIA GPU detected: %w", err)
+		utils.LogInfo("No NVIDIA GPU detected, skipping driver installation.")
+		return nil // Continue installation without error
 	}
 
 	utils.LogInfo("Detected NVIDIA GPU: %s", gpuInfo)

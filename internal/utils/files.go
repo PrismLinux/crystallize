@@ -74,7 +74,7 @@ func CopyFile(src, dst string) error {
 		return err
 	}
 
-	LogInfo("Copied %s to %s", src, dst)
+	LogDebug("Copied %s to %s", src, dst)
 	return nil
 }
 
@@ -323,6 +323,87 @@ func SetPermissions(path string, mode os.FileMode) error {
 // MakeExecutable makes a file executable
 func MakeExecutable(path string) error {
 	return SetPermissions(path, 0755)
+}
+
+// ShouldSkipFile determines if a file should be skipped during copy operations
+func ShouldSkipFile(filename string) bool {
+	skipPatterns := []string{
+		"s.dirmngr", // GnuPG temporary socket
+		"S.dirmngr", // GnuPG temporary socket (capital S)
+		"s.keyboxd", // GnuPG temporary socket
+		"S.keyboxd", // GnuPG temporary socket (capital S)
+		".#",        // Emacs temporary files
+		"#",         // Various temporary files
+		".lock",     // Lock files
+		".tmp",      // Temporary files
+		"~",         // Backup files
+		".socket",   // Socket files
+		".pid",      // Process ID files
+		"gpg-agent", // GPG agent files
+	}
+
+	for _, pattern := range skipPatterns {
+		if strings.Contains(filename, pattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// CopyFileIfExists copies a file only if the source exists
+func CopyFileIfExists(src, dst string) error {
+	if !Exists(src) {
+		LogWarn("Source file does not exist: %s", src)
+		return nil
+	}
+
+	// Ensure destination directory exists
+	dstDir := filepath.Dir(dst)
+	if err := CreateDirectory(dstDir); err != nil {
+		return fmt.Errorf("failed to create destination directory %s: %w", dstDir, err)
+	}
+
+	return CopyFile(src, dst)
+}
+
+// CopyDirectoryFiltered copies a directory and its contents, skipping problematic files.
+func CopyDirectoryFiltered(src, dst string) error {
+	if !Exists(src) {
+		return fmt.Errorf("source directory does not exist: %s", src)
+	}
+
+	if err := CreateDirectory(dst); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return fmt.Errorf("failed to read source directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		if ShouldSkipFile(entry.Name()) {
+			continue
+		}
+
+		if entry.IsDir() {
+			if err := CopyDirectoryFiltered(srcPath, dstPath); err != nil {
+				LogWarn("Failed to copy subdirectory %s: %v", srcPath, err)
+				continue
+			}
+		} else {
+			if err := CopyFile(srcPath, dstPath); err != nil {
+				LogWarn("Failed to copy file %s: %v", srcPath, err)
+				continue
+			}
+		}
+	}
+
+	return nil
 }
 
 // FilesEval evaluates file operation result and crashes on error

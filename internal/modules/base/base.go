@@ -3,6 +3,7 @@ package base
 import (
 	"crystallize-cli/internal/utils"
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -26,6 +27,7 @@ var (
 		// Extras
 		"btrfs-progs",
 		"xfsprogs",
+		"terminus-font",
 		"ttf-liberation",
 		"bash",
 		"bash-completion",
@@ -45,7 +47,6 @@ var (
 func InstallBasePackages(kernel string) error {
 	utils.LogInfo("Installing base packages to /mnt")
 
-	// Ensure /mnt/etc exists
 	if err := utils.CreateDirectory("/mnt/etc"); err != nil {
 		utils.LogWarn("Failed to create /mnt/etc: %v", err)
 	}
@@ -55,7 +56,6 @@ func InstallBasePackages(kernel string) error {
 		kernelPkg = "linux-cachyos"
 	}
 
-	// Check if kernel is supported
 	supported := false
 	for _, k := range SupportedKernels {
 		if k == kernelPkg {
@@ -85,7 +85,6 @@ func InstallBasePackages(kernel string) error {
 func SetupArchlinuxKeyring() error {
 	utils.LogInfo("Setting up Arch Linux keyring in chroot")
 
-	// Verify that pacman-key exists in the chroot
 	if err := utils.ExecChroot("which", "pacman-key"); err != nil {
 		return fmt.Errorf("pacman-key not found in chroot environment. Base packages may not be installed properly")
 	}
@@ -109,27 +108,63 @@ func SetupArchlinuxKeyring() error {
 	return nil
 }
 
-// CopyLiveConfig copies configuration from LiveISO to System
+// CopyLiveConfig copies configuration from LiveISO to System with proper error handling
 func CopyLiveConfig() {
 	utils.LogInfo("Copying live configuration")
 
-	// Copy pacman configuration
-	if err := utils.CopyFile("/etc/pacman.conf", "/mnt/etc/pacman.conf"); err != nil {
+	// Copy pacman configuration with error handling
+	if err := utils.CopyFileIfExists("/etc/pacman.conf", "/mnt/etc/pacman.conf"); err != nil {
 		utils.LogError("Failed to copy pacman.conf: %v", err)
+	} else {
+		utils.LogInfo("✓ Copied pacman configuration")
 	}
 
-	if err := utils.CopyDirectory("/etc/pacman.d/", "/mnt/etc/pacman.d/"); err != nil {
+	// Copy mirrorlist directory with filtering for problematic files
+	if err := utils.CopyDirectoryFiltered("/etc/pacman.d/", "/mnt/etc/pacman.d/"); err != nil {
 		utils.LogWarn("Failed to copy mirrorlist, network performance may be degraded: %v", err)
+	} else {
+		utils.LogInfo("✓ Copied mirrorlist configuration")
 	}
 
 	// Copy vconsole configuration
-	utils.CopyFile("/etc/vconsole.conf", "/mnt/etc/vconsole.conf")
+	if err := utils.CopyFileIfExists("/etc/vconsole.conf", "/mnt/etc/vconsole.conf"); err != nil {
+		utils.LogWarn("Failed to copy vconsole.conf: %v", err)
+	} else {
+		utils.LogInfo("✓ Copied console configuration")
+	}
 }
 
 // Genfstab generates the filesystem table
-func Genfstab() {
+func Genfstab() error {
 	utils.LogInfo("Generating fstab")
-	utils.ExecEval(utils.Exec("bash", "-c", "genfstab -U /mnt >> /mnt/etc/fstab"), "Generate fstab")
+
+	// Ensure /mnt/etc exists
+	if err := utils.CreateDirectory("/mnt/etc"); err != nil {
+		return fmt.Errorf("failed to create /mnt/etc directory: %w", err)
+	}
+
+	// Generate fstab
+	if err := utils.Exec("bash", "-c", "genfstab -U /mnt >> /mnt/etc/fstab"); err != nil {
+		return fmt.Errorf("failed to generate fstab: %w", err)
+	}
+
+	// Verify fstab was created and has content
+	if !utils.Exists("/mnt/etc/fstab") {
+		return fmt.Errorf("fstab was not created")
+	}
+
+	// Check if fstab has meaningful content
+	content, err := os.ReadFile("/mnt/etc/fstab")
+	if err != nil {
+		return fmt.Errorf("failed to read generated fstab: %w", err)
+	}
+
+	if len(strings.TrimSpace(string(content))) == 0 {
+		return fmt.Errorf("generated fstab is empty")
+	}
+
+	utils.LogInfo("✓ Generated fstab successfully")
+	return nil
 }
 
 // InstallZram installs and configures ZRAM
@@ -140,10 +175,9 @@ func InstallZram(size uint64) error {
 		return fmt.Errorf("failed to install zram-generator: %w", err)
 	}
 
-	// Ensure the systemd directory exists
 	if err := utils.CreateDirectory("/mnt/etc/systemd"); err != nil {
 		utils.LogError("Failed to create systemd directory: %v", err)
-		return nil
+		return fmt.Errorf("failed to create systemd directory: %w", err)
 	}
 
 	var zramConfig string
@@ -154,24 +188,25 @@ func InstallZram(size uint64) error {
 	}
 
 	if err := utils.WriteFile("/mnt/etc/systemd/zram-generator.conf", zramConfig); err != nil {
-		utils.LogError("Failed to write zram config: %v", err)
-		return nil
+		return fmt.Errorf("failed to write zram config: %w", err)
 	}
 
-	utils.LogInfo("ZRAM configuration complete")
+	utils.LogInfo("✓ ZRAM configuration complete")
 	return nil
 }
 
 // InstallFlatpak installs Flatpak package manager
 func InstallFlatpak() error {
 	utils.LogInfo("Installing Flatpak")
+
 	if err := utils.Install([]string{"flatpak"}); err != nil {
 		return fmt.Errorf("failed to install flatpak: %w", err)
 	}
 
-	utils.ExecEval(
-		utils.ExecChroot("flatpak", "remote-add", "--if-not-exists", "flathub", "https://flathub.org/repo/flathub.flatpakrepo"),
-		"add flathub remote",
-	)
+	if err := utils.ExecChroot("flatpak", "remote-add", "--if-not-exists", "flathub", "https://flathub.org/repo/flathub.flatpakrepo"); err != nil {
+		return fmt.Errorf("failed to add flathub remote: %w", err)
+	}
+
+	utils.LogInfo("✓ Flatpak installation complete")
 	return nil
 }
