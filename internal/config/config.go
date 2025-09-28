@@ -205,9 +205,6 @@ func (c *Config) installBaseSystem() error {
 		return fmt.Errorf("failed to setup keyring: %w", err)
 	}
 
-	// Copy live system config files to the new installation
-	base.CopyLiveConfig()
-
 	// Generate fstab early so it's available for other operations
 	base.Genfstab()
 
@@ -313,6 +310,8 @@ func (c *Config) installDesktop() error {
 		return desktops.InstallDesktopSetup(desktops.DesktopCosmic)
 	case "cinnamon":
 		return desktops.InstallDesktopSetup(desktops.DesktopCinnamon)
+	case "hyprland":
+		return desktops.InstallDesktopSetup(desktops.DesktopHyprland)
 	case "none":
 		return desktops.InstallDesktopSetup(desktops.DesktopNone)
 	default:
@@ -345,6 +344,9 @@ func (c *Config) finalizeInstallation() error {
 	if err := base.InstallNvidia(); err != nil {
 		return fmt.Errorf("failed to install nvidia drivers: %w", err)
 	}
+
+	// Copy live system config files to the new installation
+	base.CopyLiveConfig()
 
 	// Setup ZRAM
 	zramInfo := "auto (min(ram/2, 4096))"

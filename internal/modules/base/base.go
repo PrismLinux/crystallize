@@ -4,6 +4,7 @@ import (
 	"crystallize-cli/internal/utils"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -56,13 +57,7 @@ func InstallBasePackages(kernel string) error {
 		kernelPkg = "linux-cachyos"
 	}
 
-	supported := false
-	for _, k := range SupportedKernels {
-		if k == kernelPkg {
-			supported = true
-			break
-		}
-	}
+	supported := slices.Contains(SupportedKernels, kernelPkg)
 
 	if !supported {
 		utils.LogWarn("Unknown kernel: %s, using linux-cachyos instead", kernelPkg)
@@ -105,13 +100,6 @@ func SetupArchlinuxKeyring() error {
 		utils.LogInfo("✓ %s", step.description)
 	}
 
-	return nil
-}
-
-// CopyLiveConfig copies configuration from LiveISO to System with proper error handling
-func CopyLiveConfig() {
-	utils.LogInfo("Copying live configuration")
-
 	// Copy pacman configuration with error handling
 	if err := utils.CopyFileIfExists("/etc/pacman.conf", "/mnt/etc/pacman.conf"); err != nil {
 		utils.LogError("Failed to copy pacman.conf: %v", err)
@@ -125,6 +113,19 @@ func CopyLiveConfig() {
 	} else {
 		utils.LogInfo("✓ Copied mirrorlist configuration")
 	}
+
+	return nil
+}
+
+// CopyLiveConfig copies configuration from LiveISO to System with proper error handling
+func CopyLiveConfig() {
+	utils.LogInfo("Copying live configuration")
+
+	utils.LogInfo("Cleanup pacman.conf")
+	utils.FilesEval(
+		utils.SedFile("/mnt/etc/pacman.conf", "IgnorePkg = nvidia-340xx-utils", "#IgnorePkg ="),
+		"Removed ignored packages",
+	)
 
 	// Copy vconsole configuration
 	if err := utils.CopyFileIfExists("/etc/vconsole.conf", "/mnt/etc/vconsole.conf"); err != nil {

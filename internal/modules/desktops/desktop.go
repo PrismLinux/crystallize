@@ -2,12 +2,9 @@ package desktops
 
 import "crystallize-cli/internal/utils"
 
-func installGraphics() error {
-	return utils.Install([]string{"prismlinux-graphics"})
-}
-
-func installDesktopPackages() error {
-	packages := []string{
+var (
+	installGraphics        = []string{"prismlinux-graphics"}
+	installDesktopPackages = []string{
 		"about",
 		// Sound
 		"pipewire",
@@ -19,6 +16,7 @@ func installDesktopPackages() error {
 		"sof-firmware",
 		"wireplumber",
 		// Desktop
+		"floorp",
 		"xdg-user-dirs",
 		"wpa_supplicant",
 		"xdg-utils",
@@ -27,13 +25,34 @@ func installDesktopPackages() error {
 		"noto-fonts-emoji",
 		"noto-fonts-extra",
 	}
-	return utils.Install(packages)
+)
+
+func buildPackages(base []string) []string {
+	pkgs := make([]string, 0, len(base)+len(installGraphics)+len(installDesktopPackages))
+	pkgs = append(pkgs, base...)
+	pkgs = append(pkgs, installGraphics...)
+	pkgs = append(pkgs, installDesktopPackages...)
+	return pkgs
 }
 
 // -------------[DE]-------------
+func installAndEnable(packages []string, service string, serviceMsg string, post func() error) error {
+	if err := utils.Install(packages); err != nil {
+		return err
+	}
+	if post != nil {
+		if err := post(); err != nil {
+			return err
+		}
+	}
+	if service != "" {
+		enableService(service, serviceMsg)
+	}
+	return nil
+}
 
 func installPlasma() error {
-	packages := []string{
+	base := []string{
 		"prismlinux-plasma-settings",
 		"sddm",
 		"ghostty",
@@ -41,15 +60,11 @@ func installPlasma() error {
 		"dolphin",
 		"plasma-systemmonitor",
 	}
-	if err := utils.Install(packages); err != nil {
-		return err
-	}
-	enableService("sddm", "Enable SDDM")
-	return nil
+	return installAndEnable(buildPackages(base), "sddm", "Enable SDDM", nil)
 }
 
 func installGnome() error {
-	packages := []string{
+	base := []string{
 		"prismlinux-gnome-settings",
 		"nautilus",
 		"amberol",
@@ -58,30 +73,22 @@ func installGnome() error {
 		"gnome-system-monitor",
 		"gdm",
 	}
-	if err := utils.Install(packages); err != nil {
-		return err
-	}
-	enableService("gdm", "Enabling GDM")
-	return nil
+	return installAndEnable(buildPackages(base), "gdm", "Enabling GDM", nil)
 }
 
 func installCosmic() error {
-	packages := []string{
+	base := []string{
 		"prismlinux-cosmic-settings",
 		"cosmic-files",
 		"cosmic-greeter",
 		"loupe",
 		"ghossty",
 	}
-	if err := utils.Install(packages); err != nil {
-		return err
-	}
-	enableService("cosmic-greeter", "Enabling Cosmic Greeter")
-	return nil
+	return installAndEnable(buildPackages(base), "cosmic-greeter", "Enabling Cosmic Greeter", nil)
 }
 
 func installCinnamon() error {
-	packages := []string{
+	base := []string{
 		"prismlinux-cinnamon-settings",
 		"nemo",
 		"loupe",
@@ -90,18 +97,25 @@ func installCinnamon() error {
 		"lightdm-gtk-greeter",
 		"lightdm-gtk-greeter-settings",
 	}
-	if err := utils.Install(packages); err != nil {
-		return err
+	post := func() error {
+		utils.FilesEval(
+			utils.AppendFile(
+				"/mnt/etc/lightdm/lightdm.conf",
+				"[SeatDefaults]\ngreeter-session=lightdm-gtk-greeter\n",
+			),
+			"Add lightdm greeter",
+		)
+		return nil
 	}
+	return installAndEnable(buildPackages(base), "lightdm", "Enabling LightDM", post)
+}
 
-	utils.FilesEval(
-		utils.AppendFile(
-			"/mnt/etc/lightdm/lightdm.conf",
-			"[SeatDefaults]\ngreeter-session=lightdm-gtk-greeter\n",
-		),
-		"Add lightdm greeter",
-	)
+// -------------[WM]-------------
 
-	enableService("lightdm", "Enabling LightDM")
-	return nil
+func InstallHyprland() error {
+	base := []string{
+		"prismlinux-hyprland-quickshellbase",
+		"sddm",
+	}
+	return installAndEnable(buildPackages(base), "sddm", "Enable SDDM", nil)
 }

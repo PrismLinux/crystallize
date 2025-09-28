@@ -46,7 +46,7 @@ func CreateFileWithContent(path, content string) error {
 	return nil
 }
 
-// CopyFile copies a file from source to destination
+// CopyFile copies a file from source to destination and sets ownership to root:root and permissions to 0600
 func CopyFile(src, dst string) error {
 	if parent := filepath.Dir(dst); parent != "." {
 		if err := os.MkdirAll(parent, 0755); err != nil {
@@ -104,7 +104,7 @@ func AppendFile(path, content string) error {
 	}
 
 	content = strings.TrimSuffix(content, "\n")
-	_, err = file.WriteString(fmt.Sprintf("%s%s\n", prefix, content))
+	_, err = fmt.Fprintf(file, "%s%s\n", prefix, content)
 	if err != nil {
 		return fmt.Errorf("failed to append to file: %w", err)
 	}
@@ -233,7 +233,7 @@ func CopyDirectory(src, dst string) error {
 				return err
 			}
 		} else {
-			// Copy file
+			// Copy file - CopyFile handles ownership/permissions for files
 			if err := CopyFile(srcPath, dstPath); err != nil {
 				return err
 			}

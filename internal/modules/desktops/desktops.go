@@ -13,6 +13,7 @@ const (
 	DesktopPlasma   DesktopSetup = "plasma"
 	DesktopCosmic   DesktopSetup = "cosmic"
 	DesktopCinnamon DesktopSetup = "cinnamon"
+	DesktopHyprland DesktopSetup = "hyprland"
 	DesktopNone     DesktopSetup = "none"
 )
 
@@ -33,25 +34,21 @@ func InstallDesktopSetup(desktopSetup DesktopSetup) error {
 	if err := installFirewalld(); err != nil {
 		return fmt.Errorf("failed to install Firewalld: %w", err)
 	}
-	if err := installGraphics(); err != nil {
-		return fmt.Errorf("failed to install graphics stack: %w", err)
-	}
-	if err := installDesktopPackages(); err != nil {
-		return fmt.Errorf("failed to install common desktop packages: %w", err)
-	}
 
 	// Install the specific desktop environment
 	utils.LogInfo("Installing %s environment...", desktopSetup)
 	var installErr error
 	switch desktopSetup {
-	case DesktopGnome:
-		installErr = installGnome()
 	case DesktopPlasma:
 		installErr = installPlasma()
+	case DesktopGnome:
+		installErr = installGnome()
 	case DesktopCosmic:
 		installErr = installCosmic()
 	case DesktopCinnamon:
 		installErr = installCinnamon()
+	case DesktopHyprland:
+		installErr = InstallHyprland()
 	default:
 		// This case handles any unsupported desktop strings
 		return fmt.Errorf("unsupported desktop environment: %s", desktopSetup)

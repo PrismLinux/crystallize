@@ -122,7 +122,7 @@ func FilesystemFromString(fs string) FilesystemType {
 	}
 
 	if isNoFormatVariation(normalized) {
-		utils.LogInfo("Detected no-format variation: %s", fs)
+		utils.LogDebug("Detected no-format variation: %s", fs)
 		return NoFormat
 	}
 
@@ -468,7 +468,7 @@ func formatAndMount(partition *PartitionType, efi bool) error {
 
 	fsType := FilesystemFromString(partition.Filesystem)
 	if fsType == NoFormat {
-		utils.LogInfo("Skipping format and mount for %s (noformat)", partition.BlockDevice)
+		utils.LogDebug("Skipping format and mount for %s (noformat)", partition.BlockDevice)
 		return nil
 	}
 

@@ -62,7 +62,7 @@ func detectNvidiaGPU() (string, error) {
 	}
 
 	outputStr := string(output)
-	for _, line := range strings.Split(outputStr, "\n") {
+	for line := range strings.SplitSeq(outputStr, "\n") {
 		if strings.Contains(strings.ToLower(line), "nvidia") &&
 			(strings.Contains(strings.ToLower(line), "vga") ||
 				strings.Contains(strings.ToLower(line), "3d")) {
