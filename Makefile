@@ -8,58 +8,56 @@ GO := go
 GOCACHE := $(shell $(GO) env GOCACHE)
 export GOCACHE
 
-# Performance-optimized build flags
 BUILD_FLAGS := -trimpath
 LDFLAGS := -ldflags="-s -w -buildid="
 
-# Find all Go source files for proper dependency tracking
 GO_SOURCES := $(shell find . -path ./vendor -prune -o -name '*.go' -print)
 
-# Default target
 .DEFAULT_GOAL := build
 
-# Build the application with performance optimizations
-build: $(BIN_DIR)/$(BINARY)
-
-$(BIN_DIR)/$(BINARY): $(GO_SOURCES)
+# Main build target: build and compress
+build: | $(BIN_DIR)
 	@echo "Building optimized $(PROJECT_NAME)..."
-	mkdir -p $(BIN_DIR)
-	CGO_ENABLED=0 $(GO) build $(BUILD_FLAGS) $(LDFLAGS) -o $@ ./main.go
-	@echo "Optimized build completed: $@"
+	CGO_ENABLED=0 $(GO) build $(BUILD_FLAGS) $(LDFLAGS) -o $(BIN_DIR)/$(BINARY) ./main.go
+	@echo "Optimized build completed."
 
-# Clean build artifacts
+	@echo "Checking for UPX..."
+	@which upx > /dev/null || (echo "Error: UPX not found. Please install UPX." && exit 1)
+	@echo "Compressing binary with UPX..."
+	upx --best --lzma $(BIN_DIR)/$(BINARY)
+	@echo "UPX compression done: $(BIN_DIR)/$(BINARY)"
+
+$(BIN_DIR):
+	mkdir -p $@
+
 clean:
 	@echo "Cleaning build artifacts..."
-	rm -rf $(BIN_DIR)/*
+	rm -rf $(BIN_DIR)
 	$(GO) clean -cache -modcache
 	@echo "Cleanup completed"
 
-# Format Go code efficiently
 fmt:
 	@echo "Formatting Go code..."
 	$(GO) fmt ./...
 	@echo "Code formatted"
 
-# Install Fish shell completion
-install-autocompletion: $(BIN_DIR)/$(BINARY)
+install-autocompletion: build
 	@echo "Generating Fish shell completion..."
 	$(BIN_DIR)/$(BINARY) completion fish > $(BINARY).fish
 	mkdir -p ~/.config/fish/completions
 	cp $(BINARY).fish ~/.config/fish/completions/
-	@echo "Fish shell completion installed to ~/.config/fish/completions/$(BINARY).fish"
+	@echo "Fish shell completion installed."
 
-# Help target
 help:
 	@echo ""
 	@echo "$(PROJECT_NAME) Makefile"
 	@echo "Usage: make [target]"
 	@echo ""
-	@echo "Build targets:"
-	@echo "  build                Build the optimized application"
-	@echo "  clean                Clean build artifacts and Go caches"
+	@echo "  build                Build and compress binary with UPX"
+	@echo "  clean                Clean build artifacts"
 	@echo "  fmt                  Format Go code"
-	@echo "  install-autocompletion Install Fish shell completion"
-	@echo "  help                 Show this help message"
+	@echo "  install-autocompletion Install Fish completion"
+	@echo "  help                 Show this help"
 	@echo ""
 
 .PHONY: build clean fmt install-autocompletion help
