@@ -1,9 +1,10 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
-	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -16,23 +17,35 @@ import (
 	"crystallize-cli/internal/utils"
 )
 
+const (
+	installTimeout = 2 * time.Hour
+	mountStabilize = 500 * time.Millisecond
+	unmountDelay   = 200 * time.Millisecond
+)
+
+// BootloaderType represents supported bootloader types
+type BootloaderType string
+
+const (
+	BootloaderGrubEFI    BootloaderType = "grub-efi"
+	BootloaderGrubLegacy BootloaderType = "grub-legacy"
+)
+
 // Config represents the installation configuration
 type Config struct {
-	Partition  PartitionConfig  `json:"partition"`
-	Bootloader BootloaderConfig `json:"bootloader"`
-	Locale     LocaleConfig     `json:"locale"`
-	Networking NetworkConfig    `json:"networking"`
-	Users      []UserConfig     `json:"users"`
-	RootPass   string           `json:"rootpass"`
-	Desktop    string           `json:"desktop"`
-	Zram       uint64           `json:"zram"`
-	// Nvidia        bool             `json:"nvidia"`
-	ExtraPackages []string `json:"extra_packages"`
-	Kernel        string   `json:"kernel"`
-	Flatpak       bool     `json:"flatpak"`
+	Partition     PartitionConfig  `json:"partition"`
+	Bootloader    BootloaderConfig `json:"bootloader"`
+	Locale        LocaleConfig     `json:"locale"`
+	Networking    NetworkConfig    `json:"networking"`
+	Users         []UserConfig     `json:"users"`
+	RootPass      string           `json:"rootpass"`
+	Desktop       string           `json:"desktop"`
+	Zram          uint64           `json:"zram"`
+	ExtraPackages []string         `json:"extra_packages"`
+	Kernel        string           `json:"kernel"`
+	Flatpak       bool             `json:"flatpak"`
 }
 
-// PartitionConfig contains partition configuration
 type PartitionConfig struct {
 	Device     string   `json:"device"`
 	Mode       string   `json:"mode"`
@@ -40,26 +53,22 @@ type PartitionConfig struct {
 	Partitions []string `json:"partitions"`
 }
 
-// BootloaderConfig contains bootloader configuration
 type BootloaderConfig struct {
 	Type     string `json:"type"`
 	Location string `json:"location"`
 }
 
-// LocaleConfig contains locale configuration
 type LocaleConfig struct {
 	Locale   []string `json:"locale"`
 	Keymap   string   `json:"keymap"`
 	Timezone string   `json:"timezone"`
 }
 
-// NetworkConfig contains network configuration
 type NetworkConfig struct {
 	Hostname string `json:"hostname"`
 	IPv6     bool   `json:"ipv6"`
 }
 
-// UserConfig contains user configuration
 type UserConfig struct {
 	Name     string `json:"name"`
 	Password string `json:"password"`
@@ -67,334 +76,441 @@ type UserConfig struct {
 	Shell    string `json:"shell"`
 }
 
-// normalizeDevicePath ensures the device path is properly formatted
-func normalizeDevicePath(device string) string {
-	// Remove any existing /dev/ prefix to avoid double /dev/dev/
-	device = strings.TrimPrefix(device, "/dev/")
-
-	// Add /dev/ prefix
-	return "/dev/" + device
+// Installer orchestrates the installation process
+type Installer struct {
+	config      *Config
+	mountPoints []string
 }
 
-// ReadConfig reads and executes the installation configuration
+// Stage represents an installation stage
+type Stage struct {
+	Name     string
+	Required bool
+	Execute  func(context.Context) error
+}
+
+// mountSpec represents a filesystem mount
+type mountSpec struct {
+	source string
+	target string
+	fstype string
+	bind   bool
+}
+
+func (m mountSpec) mount() error {
+	if m.bind {
+		return utils.Exec("mount", "--bind", m.source, m.target)
+	}
+	return utils.Exec("mount", "-t", m.fstype, m.source, m.target)
+}
+
+// ReadConfig is the main entry point for installation
 func ReadConfig(configPath string) error {
-	config, err := LoadConfig(configPath)
+	cfg, err := LoadConfig(configPath)
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+		return err
 	}
 
-	// Defer the cleanup function. It will now run regardless of whether
-	// the installation succeeds or fails, ensuring mount points are cleaned up.
-	defer config.cleanupInstallation()
+	installer := NewInstaller(cfg)
 
-	utils.LogInfo("Starting installation process...")
+	ctx, cancel := context.WithTimeout(context.Background(), installTimeout)
+	defer cancel()
 
-	// Setup partitions
-	if err := config.setupPartitions(); err != nil {
-		return fmt.Errorf("partition setup failed: %w", err)
+	return installer.Install(ctx)
+}
+
+// LoadConfig loads and validates configuration from file
+func LoadConfig(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, utils.NewErrorf("read config file: %w", err)
 	}
 
-	// Install base system
-	if err := config.installBaseSystem(); err != nil {
-		return fmt.Errorf("base system installation failed: %w", err)
+	var cfg Config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return nil, utils.NewErrorf("parse config JSON: %w", err)
 	}
 
-	// Setup bootloader
-	if err := config.setupBootloader(); err != nil {
-		return fmt.Errorf("bootloader setup failed: %w", err)
+	if err := cfg.Validate(); err != nil {
+		return nil, utils.NewErrorf("config validation failed: %w", err)
 	}
 
-	// Configure locale
-	config.configureLocale()
+	utils.LogDebug("Configuration loaded from %s", path)
+	return &cfg, nil
+}
 
-	// Setup networking
-	config.setupNetworking()
-
-	// Install desktop environment
-	if err := config.installDesktop(); err != nil {
-		return fmt.Errorf("desktop installation failed: %w", err)
+// Validate performs comprehensive configuration validation
+func (c *Config) Validate() error {
+	// Required field validators
+	validators := []struct {
+		check   bool
+		message string
+	}{
+		{c.Partition.Device == "", "partition device is required"},
+		{c.Bootloader.Type == "", "bootloader type is required"},
+		{!isValidBootloader(c.Bootloader.Type), utils.Sprintf("invalid bootloader type '%s' (valid: grub-efi, grub-legacy)", c.Bootloader.Type)},
+		{c.Bootloader.Location == "", "bootloader location is required"},
+		{len(c.Locale.Locale) == 0, "at least one locale is required"},
+		{c.Locale.Keymap == "", "keymap is required"},
+		{c.Locale.Timezone == "", "timezone is required"},
+		{c.Networking.Hostname == "", "hostname is required"},
+		{len(c.Users) == 0, "at least one user is required"},
+		{c.RootPass == "", "root password is required"},
+		{c.Kernel == "", "kernel package is required"},
 	}
 
-	// Create users
-	if err := config.createUsers(); err != nil {
-		return fmt.Errorf("user creation failed: %w", err)
+	for _, v := range validators {
+		if v.check {
+			return utils.NewError(v.message)
+		}
 	}
 
-	// Finalize installation
-	if err := config.finalizeInstallation(); err != nil {
-		return fmt.Errorf("installation finalization failed: %w", err)
+	// Validate users
+	for i, user := range c.Users {
+		if user.Name == "" {
+			return utils.NewErrorf("user %d: name is required", i)
+		}
+		if user.Password == "" {
+			return utils.NewErrorf("user %d: password is required", i)
+		}
 	}
 
-	utils.LogInfo("Installation completed successfully! You may reboot now.")
+	// Validate partitions format
+	for i, part := range c.Partition.Partitions {
+		if strings.Count(part, ":") != 2 {
+			return utils.NewErrorf("partition %d: invalid format '%s' (expected: type:size:mountpoint)", i, part)
+		}
+	}
+
 	return nil
 }
 
-// LoadConfig loads configuration from file
-func LoadConfig(configPath string) (*Config, error) {
-	content, err := os.ReadFile(configPath)
+// NewInstaller creates a new installer instance
+func NewInstaller(cfg *Config) *Installer {
+	return &Installer{
+		config:      cfg,
+		mountPoints: make([]string, 0, 8),
+	}
+}
+
+// Install executes the installation process
+func (i *Installer) Install(ctx context.Context) error {
+	defer i.cleanup()
+
+	i.logBanner()
+	stages := i.buildStages()
+
+	for idx, stage := range stages {
+		select {
+		case <-ctx.Done():
+			return utils.NewErrorf("installation cancelled: %w", ctx.Err())
+		default:
+		}
+
+		utils.LogInfo("[%d/%d] %s", idx+1, len(stages), stage.Name)
+
+		if err := stage.Execute(ctx); err != nil {
+			if stage.Required {
+				utils.LogError("Stage failed: %v", err)
+				return utils.NewErrorf("%s: %w", stage.Name, err)
+			}
+			utils.LogWarn("%s failed (non-critical): %v", stage.Name, err)
+		}
+	}
+
+	i.logCompletion()
+	return nil
+}
+
+// logBanner prints installation header
+func (i *Installer) logBanner() {
+	utils.LogInfo("═══════════════════════════════════════════")
+	utils.LogInfo("  PrismLinux Installation")
+	utils.LogInfo("═══════════════════════════════════════════")
+	utils.LogInfo("Device: %s", i.config.Partition.Device)
+	utils.LogInfo("Desktop: %s", i.config.Desktop)
+	utils.LogInfo("Kernel: %s", i.config.Kernel)
+	utils.LogInfo("═══════════════════════════════════════════")
+}
+
+// logCompletion prints installation footer
+func (i *Installer) logCompletion() {
+	utils.LogInfo("═══════════════════════════════════════════")
+	utils.LogInfo("✓ Installation completed successfully!")
+	utils.LogInfo("  You can now reboot into your new system")
+	utils.LogInfo("═══════════════════════════════════════════")
+}
+
+// buildStages constructs the installation pipeline
+func (i *Installer) buildStages() []Stage {
+	return []Stage{
+		{Name: "Partition Setup", Required: true, Execute: i.setupPartitions},
+		{Name: "Base System", Required: true, Execute: i.installBaseSystem},
+		{Name: "Chroot Environment", Required: true, Execute: i.setupChroot},
+		{Name: "System Keyring", Required: true, Execute: i.setupKeyring},
+		{Name: "File System Table", Required: true, Execute: i.generateFstab},
+		{Name: "Bootloader", Required: true, Execute: i.setupBootloader},
+		{Name: "Locale Configuration", Required: true, Execute: i.configureLocale},
+		{Name: "Network Configuration", Required: true, Execute: i.setupNetworking},
+		{Name: "User Accounts", Required: true, Execute: i.createUsers},
+		{Name: "Desktop Environment", Required: false, Execute: i.installDesktop},
+		{Name: "Additional Packages", Required: false, Execute: i.installExtras},
+		{Name: "System Finalization", Required: true, Execute: i.finalize},
+	}
+}
+
+// setupPartitions configures disk partitioning
+func (i *Installer) setupPartitions(ctx context.Context) error {
+	devicePath := normalizeDevicePath(i.config.Partition.Device)
+
+	mode, err := partition.ParsePartitionMode(i.config.Partition.Mode)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read config file %s: %w", configPath, err)
+		utils.LogWarn("Using default partition mode: %v", err)
 	}
 
-	var config Config
-	if err := json.Unmarshal(content, &config); err != nil {
-		return nil, fmt.Errorf("failed to parse config file %s: %w", configPath, err)
+	partitions, err := parsePartitions(i.config.Partition.Partitions)
+	if err != nil {
+		return err
 	}
 
-	utils.LogDebug("Successfully loaded config from %s", configPath)
-	return &config, nil
+	utils.LogDebug("Device: %s, Mode: %s, EFI: %t", devicePath, i.config.Partition.Mode, i.config.Partition.EFI)
+
+	if err := partition.Partition(devicePath, mode, i.config.Partition.EFI, partitions); err != nil {
+		return utils.NewErrorf("partition disk: %w", err)
+	}
+
+	i.mountPoints = append(i.mountPoints, "/mnt")
+	return nil
+}
+
+// installBaseSystem installs base packages
+func (i *Installer) installBaseSystem(ctx context.Context) error {
+	if err := base.InstallBasePackages(i.config.Kernel); err != nil {
+		return utils.NewErrorf("install base packages: %w", err)
+	}
+	return nil
+}
+
+// setupChroot prepares the chroot environment
+func (i *Installer) setupChroot(ctx context.Context) error {
+	utils.LogDebug("Preparing chroot environment")
+
+	dirs := []string{"/mnt/proc", "/mnt/sys", "/mnt/dev", "/mnt/dev/pts", "/mnt/run"}
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return utils.NewErrorf("create directory %s: %w", dir, err)
+		}
+	}
+
+	mounts := []mountSpec{
+		{source: "proc", target: "/mnt/proc", fstype: "proc"},
+		{source: "sysfs", target: "/mnt/sys", fstype: "sysfs"},
+		{source: "/dev", target: "/mnt/dev", bind: true},
+		{source: "devpts", target: "/mnt/dev/pts", fstype: "devpts"},
+	}
+
+	for _, m := range mounts {
+		if err := m.mount(); err != nil {
+			return utils.NewErrorf("mount %s: %w", m.target, err)
+		}
+		i.mountPoints = append(i.mountPoints, m.target)
+	}
+
+	time.Sleep(mountStabilize)
+	return nil
+}
+
+// setupKeyring initializes the package keyring
+func (i *Installer) setupKeyring(ctx context.Context) error {
+	return base.SetupArchlinuxKeyring()
+}
+
+// generateFstab generates the filesystem table
+func (i *Installer) generateFstab(ctx context.Context) error {
+	base.Genfstab()
+	return nil
+}
+
+// setupBootloader installs the bootloader
+func (i *Installer) setupBootloader(ctx context.Context) error {
+	utils.LogDebug("Bootloader: %s at %s", i.config.Bootloader.Type, i.config.Bootloader.Location)
+
+	switch BootloaderType(i.config.Bootloader.Type) {
+	case BootloaderGrubEFI:
+		return base.InstallBootloaderEFI(i.config.Bootloader.Location)
+	case BootloaderGrubLegacy:
+		return base.InstallBootloaderLegacy(i.config.Bootloader.Location)
+	default:
+		return utils.NewErrorf("unsupported bootloader: %s", i.config.Bootloader.Type)
+	}
+}
+
+// configureLocale sets up system locale
+func (i *Installer) configureLocale(ctx context.Context) error {
+	utils.LogDebug("Locale: %v, Keymap: %s, Timezone: %s",
+		i.config.Locale.Locale, i.config.Locale.Keymap, i.config.Locale.Timezone)
+
+	locale.SetLocale(strings.Join(i.config.Locale.Locale, " "))
+	locale.SetKeyboard()
+	locale.SetTimezone(i.config.Locale.Timezone)
+	return nil
+}
+
+// setupNetworking configures network settings
+func (i *Installer) setupNetworking(ctx context.Context) error {
+	utils.LogDebug("Hostname: %s, IPv6: %t", i.config.Networking.Hostname, i.config.Networking.IPv6)
+
+	network.SetHostname(i.config.Networking.Hostname)
+	network.CreateHosts()
+
+	if i.config.Networking.IPv6 {
+		network.EnableIPv6()
+	}
+	return nil
+}
+
+// createUsers creates system users
+func (i *Installer) createUsers(ctx context.Context) error {
+	for _, user := range i.config.Users {
+		utils.LogDebug("Creating user: %s (root: %t, shell: %s)", user.Name, user.HasRoot, user.Shell)
+
+		if err := users.NewUser(user.Name, user.HasRoot, user.Password, false, user.Shell); err != nil {
+			return utils.NewErrorf("create user %s: %w", user.Name, err)
+		}
+	}
+
+	users.RootPass(i.config.RootPass)
+	return nil
+}
+
+// installDesktop installs the desktop environment
+func (i *Installer) installDesktop(ctx context.Context) error {
+	if i.config.Desktop == "" || strings.ToLower(i.config.Desktop) == "none" {
+		utils.LogInfo("Skipping desktop environment installation")
+		return nil
+	}
+
+	desktop, err := parseDesktop(i.config.Desktop)
+	if err != nil {
+		return err
+	}
+
+	return desktops.InstallDesktopSetup(desktop)
+}
+
+// installExtras installs additional packages
+func (i *Installer) installExtras(ctx context.Context) error {
+	if i.config.Flatpak {
+		if err := base.InstallFlatpak(); err != nil {
+			return utils.NewErrorf("install flatpak: %w", err)
+		}
+	}
+
+	if len(i.config.ExtraPackages) > 0 {
+		utils.LogDebug("Extra packages: %v", i.config.ExtraPackages)
+		if err := utils.Install(i.config.ExtraPackages); err != nil {
+			return utils.NewErrorf("install extra packages: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// finalize performs final installation steps
+func (i *Installer) finalize(ctx context.Context) error {
+	if err := base.InstallNvidia(); err != nil {
+		utils.LogWarn("NVIDIA driver installation: %v", err)
+	}
+
+	base.CopyLiveConfig()
+
+	zramSize := i.config.Zram
+	if zramSize == 0 {
+		utils.LogDebug("ZRAM: auto-configured")
+	} else {
+		utils.LogDebug("ZRAM: %d MB", zramSize)
+	}
+
+	if err := base.InstallZram(zramSize); err != nil {
+		return utils.NewErrorf("configure zram: %w", err)
+	}
+
+	return nil
+}
+
+// cleanup unmounts filesystems
+func (i *Installer) cleanup() {
+	if len(i.mountPoints) == 0 {
+		return
+	}
+
+	utils.LogInfo("Cleaning up mount points...")
+	time.Sleep(time.Second)
+
+	for idx := len(i.mountPoints) - 1; idx >= 0; idx-- {
+		i.unmountPoint(i.mountPoints[idx])
+		time.Sleep(unmountDelay)
+	}
+}
+
+// unmountPoint attempts to unmount with fallback to lazy unmount
+func (i *Installer) unmountPoint(mp string) {
+	if err := utils.Exec("umount", mp); err == nil {
+		utils.LogDebug("Unmounted: %s", mp)
+		return
+	}
+
+	if err := utils.Exec("umount", "-l", mp); err == nil {
+		utils.LogDebug("Lazy unmounted: %s", mp)
+	} else {
+		utils.LogDebug("Failed to unmount: %s", mp)
+	}
 }
 
 // parsePartitions parses partition configuration strings
-func (c *Config) parsePartitions() ([]*partition.PartitionType, error) {
-	var partitions []*partition.PartitionType
+func parsePartitions(specs []string) ([]*partition.PartitionType, error) {
+	partitions := make([]*partition.PartitionType, 0, len(specs))
 
-	for _, partitionStr := range c.Partition.Partitions {
-		parts := strings.Split(partitionStr, ":")
+	for i, spec := range specs {
+		parts := strings.SplitN(spec, ":", 3)
 		if len(parts) != 3 {
-			return nil, fmt.Errorf("invalid partition format: %s", partitionStr)
+			return nil, utils.NewErrorf("partition %d: invalid format '%s'", i, spec)
 		}
 
-		part := partition.NewPartition(parts[0], parts[1], parts[2])
-		partitions = append(partitions, part)
+		partitions = append(partitions, partition.NewPartition(parts[0], parts[1], parts[2]))
 	}
 
 	return partitions, nil
 }
 
-// setupPartitions configures disk partitioning
-func (c *Config) setupPartitions() error {
-	// Normalize device path FIRST to avoid /dev/dev/ issues
-	devicePath := normalizeDevicePath(c.Partition.Device)
-
-	utils.LogInfo("Block device: %s", devicePath)
-	utils.LogInfo("Partitioning mode: %s", c.Partition.Mode)
-	utils.LogInfo("EFI mode: %t", c.Partition.EFI)
-
-	// Parse partition mode (case insensitive)
-	mode, err := partition.ParsePartitionMode(c.Partition.Mode)
-	if err != nil {
-		utils.LogWarn("%v", err) // Log warning but continue with default
+// parseDesktop converts string to DesktopSetup
+func parseDesktop(name string) (desktops.DesktopSetup, error) {
+	desktopMap := map[string]desktops.DesktopSetup{
+		"plasma":   desktops.DesktopPlasma,
+		"kde":      desktops.DesktopPlasma,
+		"gnome":    desktops.DesktopGnome,
+		"cosmic":   desktops.DesktopCosmic,
+		"cinnamon": desktops.DesktopCinnamon,
+		"hyprland": desktops.DesktopHyprland,
+		"none":     desktops.DesktopNone,
 	}
 
-	partitions, err := c.parsePartitions()
-	if err != nil {
-		return err
+	desktop, ok := desktopMap[strings.ToLower(name)]
+	if !ok {
+		return "", utils.NewErrorf("unsupported desktop '%s' (valid: plasma, kde, gnome, cosmic, cinnamon, hyprland, none)", name)
 	}
 
-	return partition.Partition(devicePath, mode, c.Partition.EFI, partitions)
+	return desktop, nil
 }
 
-// installBaseSystem installs the base system packages
-func (c *Config) installBaseSystem() error {
-	utils.LogInfo("Setting up base system...")
-
-	// Ensure essential host system tools are available
-	c.ensureHostTools()
-
-	// Install base packages first
-	if err := base.InstallBasePackages(c.Kernel); err != nil {
-		return fmt.Errorf("failed to install base packages: %w", err)
-	}
-
-	// Setup the chroot environment after base packages are installed
-	c.prepareChrootEnvironment()
-
-	// Now setup keyring inside the chroot where pacman-key exists
-	if err := base.SetupArchlinuxKeyring(); err != nil {
-		return fmt.Errorf("failed to setup keyring: %w", err)
-	}
-
-	// Generate fstab early so it's available for other operations
-	base.Genfstab()
-
-	// Install additional components if requested
-	if c.Flatpak {
-		if err := base.InstallFlatpak(); err != nil {
-			return fmt.Errorf("failed to install flatpak: %w", err)
-		}
-	}
-
-	return nil
+// isValidBootloader checks if bootloader type is valid
+func isValidBootloader(bl string) bool {
+	return bl == string(BootloaderGrubEFI) || bl == string(BootloaderGrubLegacy)
 }
 
-// ensureHostTools checks for essential host system tools
-func (c *Config) ensureHostTools() {
-	utils.LogDebug("Ensuring essential host tools are available")
-
-	essentialTools := []string{"cat", "mount", "umount", "chroot", "pacstrap"}
-
-	for _, tool := range essentialTools {
-		if err := utils.Exec("which", tool); err == nil {
-			utils.LogDebug("Found essential tool: %s", tool)
-		} else {
-			utils.LogWarn("Essential tool %s not found on host system", tool)
-		}
-	}
-}
-
-// prepareChrootEnvironment prepares the chroot environment
-func (c *Config) prepareChrootEnvironment() {
-	utils.LogDebug("Preparing chroot environment")
-
-	// Create essential directories first
-	essentialDirs := []string{
-		"/mnt/proc", "/mnt/sys", "/mnt/dev", "/mnt/dev/pts", "/mnt/tmp", "/mnt/run",
-	}
-
-	for _, dir := range essentialDirs {
-		if err := utils.Exec("mkdir", "-p", dir); err != nil {
-			utils.LogWarn("Failed to create directory: %s", dir)
-		}
-	}
-
-	// Mount essential filesystems
-	utils.ExecEval(utils.Exec("mount", "-t", "proc", "proc", "/mnt/proc"), "mount proc filesystem")
-	utils.ExecEval(utils.Exec("mount", "-t", "sysfs", "sysfs", "/mnt/sys"), "mount sys filesystem")
-	utils.ExecEval(utils.Exec("mount", "--bind", "/dev", "/mnt/dev"), "bind mount dev filesystem")
-	utils.ExecEval(utils.Exec("mount", "-t", "devpts", "devpts", "/mnt/dev/pts"), "mount devpts filesystem")
-
-	// Wait for mounts to stabilize
-	time.Sleep(time.Second)
-}
-
-// setupBootloader installs and configures the bootloader
-func (c *Config) setupBootloader() error {
-	utils.LogInfo("Installing bootloader: %s", c.Bootloader.Type)
-	utils.LogInfo("Bootloader location: %s", c.Bootloader.Location)
-
-	switch c.Bootloader.Type {
-	case "grub-efi":
-		return base.InstallBootloaderEFI(c.Bootloader.Location)
-	case "grub-legacy":
-		return base.InstallBootloaderLegacy(c.Bootloader.Location)
-	default:
-		return fmt.Errorf("unsupported bootloader type: %s", c.Bootloader.Type)
-	}
-}
-
-// configureLocale sets up system locale
-func (c *Config) configureLocale() {
-	utils.LogInfo("Configuring locale: %v", c.Locale.Locale)
-	utils.LogInfo("Keyboard layout: %s", c.Locale.Keymap)
-	utils.LogInfo("Timezone: %s", c.Locale.Timezone)
-
-	locale.SetLocale(strings.Join(c.Locale.Locale, " "))
-	locale.SetKeyboard()
-	locale.SetTimezone(c.Locale.Timezone)
-}
-
-// setupNetworking configures network settings
-func (c *Config) setupNetworking() {
-	utils.LogInfo("Hostname: %s", c.Networking.Hostname)
-	utils.LogInfo("IPv6 enabled: %t", c.Networking.IPv6)
-
-	network.SetHostname(c.Networking.Hostname)
-	network.CreateHosts()
-
-	if c.Networking.IPv6 {
-		network.EnableIPv6()
-	}
-}
-
-// installDesktop installs the selected desktop environment
-func (c *Config) installDesktop() error {
-	utils.LogInfo("Installing desktop: %s", c.Desktop)
-
-	switch strings.ToLower(c.Desktop) {
-	case "plasma", "kde":
-		return desktops.InstallDesktopSetup(desktops.DesktopPlasma)
-	case "gnome":
-		return desktops.InstallDesktopSetup(desktops.DesktopGnome)
-	case "cosmic":
-		return desktops.InstallDesktopSetup(desktops.DesktopCosmic)
-	case "cinnamon":
-		return desktops.InstallDesktopSetup(desktops.DesktopCinnamon)
-	case "hyprland":
-		return desktops.InstallDesktopSetup(desktops.DesktopHyprland)
-	case "none":
-		return desktops.InstallDesktopSetup(desktops.DesktopNone)
-	default:
-		utils.LogWarn("Unknown desktop: %s, skipping", c.Desktop)
-		return nil
-	}
-}
-
-// createUsers creates system users
-func (c *Config) createUsers() error {
-	for _, user := range c.Users {
-		utils.LogInfo("Creating user: %s", user.Name)
-		utils.LogDebug("User has root: %t", user.HasRoot)
-		utils.LogDebug("User shell: %s", user.Shell)
-
-		if err := users.NewUser(user.Name, user.HasRoot, user.Password, false, user.Shell); err != nil {
-			return fmt.Errorf("failed to create user %s: %w", user.Name, err)
-		}
-	}
-
-	utils.LogInfo("Setting root password")
-	users.RootPass(c.RootPass)
-	return nil
-}
-
-// finalizeInstallation completes the installation process
-func (c *Config) finalizeInstallation() error {
-	utils.LogInfo("Finalizing installation...")
-
-	if err := base.InstallNvidia(); err != nil {
-		return fmt.Errorf("failed to install nvidia drivers: %w", err)
-	}
-
-	// Copy live system config files to the new installation
-	base.CopyLiveConfig()
-
-	// Setup ZRAM
-	zramInfo := "auto (min(ram/2, 4096))"
-	if c.Zram != 0 {
-		zramInfo = fmt.Sprintf("%dMB", c.Zram)
-	}
-
-	utils.LogInfo("Configuring ZRAM: %s", zramInfo)
-	if err := base.InstallZram(c.Zram); err != nil {
-		return fmt.Errorf("failed to configure zram: %w", err)
-	}
-
-	// Install extra packages
-	if len(c.ExtraPackages) > 0 {
-		utils.LogInfo("Installing extra packages: %v", c.ExtraPackages)
-		if err := utils.Install(c.ExtraPackages); err != nil {
-			return fmt.Errorf("failed to install extra packages: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// cleanupInstallation cleans up installation mounts
-func (c *Config) cleanupInstallation() {
-	utils.LogInfo("Cleaning up installation mounts...")
-
-	// Wait a moment for any pending operations to complete
-	time.Sleep(time.Second)
-
-	// Unmount in reverse order, including /mnt itself at the very end.
-	mountPoints := []string{"/mnt/dev/pts", "/mnt/dev", "/mnt/proc", "/mnt/sys", "/mnt/boot", "/mnt"}
-
-	for _, mountPoint := range mountPoints {
-		// Try normal unmount first
-		if err := utils.Exec("umount", mountPoint); err == nil {
-			utils.LogDebug("Successfully unmounted: %s", mountPoint)
-		} else {
-			// Try lazy unmount if normal unmount fails
-			utils.LogDebug("Trying lazy unmount for: %s", mountPoint)
-			if err := utils.Exec("umount", "-l", mountPoint); err == nil {
-				utils.LogDebug("Successfully lazy unmounted: %s", mountPoint)
-			} else {
-				utils.LogDebug("Failed to unmount: %s (may not be mounted or is busy)", mountPoint)
-			}
-		}
-
-		// Small delay between unmount attempts
-		time.Sleep(200 * time.Millisecond)
-	}
+// normalizeDevicePath ensures proper device path formatting
+func normalizeDevicePath(device string) string {
+	device = strings.TrimPrefix(device, "/dev/")
+	device = filepath.Clean(device)
+	return "/dev/" + device
 }

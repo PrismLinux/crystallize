@@ -1,10 +1,13 @@
 package desktops
 
-import "crystallize-cli/internal/utils"
+import (
+	"crystallize-cli/internal/utils"
+)
 
+// Common packages shared across all desktop environments
 var (
-	installGraphics        = []string{"prismlinux-graphics"}
-	installDesktopPackages = []string{
+	graphicsPackages    = []string{"prismlinux-graphics"}
+	baseDesktopPackages = []string{
 		"about",
 		// Sound
 		"pipewire",
@@ -15,7 +18,7 @@ var (
 		"libpulse",
 		"sof-firmware",
 		"wireplumber",
-		// Desktop
+		// Desktop essentials
 		"floorp",
 		"xdg-user-dirs",
 		"wpa_supplicant",
@@ -27,95 +30,122 @@ var (
 	}
 )
 
-func buildPackages(base []string) []string {
-	pkgs := make([]string, 0, len(base)+len(installGraphics)+len(installDesktopPackages))
-	pkgs = append(pkgs, base...)
-	pkgs = append(pkgs, installGraphics...)
-	pkgs = append(pkgs, installDesktopPackages...)
-	return pkgs
+// desktopConfig holds configuration for a desktop environment
+type desktopConfig struct {
+	packages    []string
+	service     string
+	serviceDesc string
+	postInstall func() error
 }
 
-// -------------[DE]-------------
-func installAndEnable(packages []string, service string, serviceMsg string, post func() error) error {
-	if err := utils.Install(packages); err != nil {
+// install executes the installation for this desktop configuration
+func (dc *desktopConfig) install() error {
+	// Build complete package list
+	allPackages := buildPackageList(dc.packages)
+
+	// Install packages
+	if err := utils.Install(allPackages); err != nil {
+		utils.LogError("Package installation failed: %v", err)
 		return err
 	}
-	if post != nil {
-		if err := post(); err != nil {
+
+	// Run post-install hook if provided
+	if dc.postInstall != nil {
+		if err := dc.postInstall(); err != nil {
+			utils.LogError("Post-install hook failed: %v", err)
 			return err
 		}
 	}
-	if service != "" {
-		enableService(service, serviceMsg)
+
+	// Enable service if specified
+	if dc.service != "" {
+		EnableService(dc.service, dc.serviceDesc)
 	}
+
 	return nil
 }
 
-func installPlasma() error {
-	base := []string{
-		"prismlinux-plasma-settings",
-		"sddm",
-		"ghostty",
-		"gwenview",
-		"dolphin",
-		"plasma-systemmonitor",
-	}
-	return installAndEnable(buildPackages(base), "sddm", "Enable SDDM", nil)
+// desktopConfigs maps desktop environments to their configurations
+var desktopConfigs = map[DesktopSetup]*desktopConfig{
+	DesktopPlasma: {
+		packages: []string{
+			"prismlinux-plasma-settings",
+			"sddm",
+			"ghostty",
+			"gwenview",
+			"dolphin",
+			"plasma-systemmonitor",
+		},
+		service:     "sddm",
+		serviceDesc: "SDDM display manager",
+	},
+	DesktopGnome: {
+		packages: []string{
+			"prismlinux-gnome-settings",
+			"nautilus",
+			"amberol",
+			"mpv",
+			"loupe",
+			"gnome-system-monitor",
+			"gdm",
+		},
+		service:     "gdm",
+		serviceDesc: "GDM display manager",
+	},
+	DesktopCosmic: {
+		packages: []string{
+			"prismlinux-cosmic-settings",
+			"cosmic-files",
+			"cosmic-greeter",
+			"loupe",
+			"ghostty",
+		},
+		service:     "cosmic-greeter",
+		serviceDesc: "Cosmic Greeter display manager",
+	},
+	DesktopCinnamon: {
+		packages: []string{
+			"prismlinux-cinnamon-settings",
+			"nemo",
+			"loupe",
+			"ghostty",
+			"lightdm",
+			"lightdm-gtk-greeter",
+			"lightdm-gtk-greeter-settings",
+		},
+		service:     "lightdm",
+		serviceDesc: "LightDM display manager",
+		postInstall: configureLightDM,
+	},
+	DesktopHyprland: {
+		packages: []string{
+			"prismlinux-hyprland-quickshellbase",
+			"sddm",
+		},
+		service:     "sddm",
+		serviceDesc: "SDDM display manager",
+	},
 }
 
-func installGnome() error {
-	base := []string{
-		"prismlinux-gnome-settings",
-		"nautilus",
-		"amberol",
-		"mpv",
-		"loupe",
-		"gnome-system-monitor",
-		"gdm",
-	}
-	return installAndEnable(buildPackages(base), "gdm", "Enabling GDM", nil)
+// buildPackageList combines base packages with desktop-specific packages
+func buildPackageList(desktopPackages []string) []string {
+	totalSize := len(desktopPackages) + len(graphicsPackages) + len(baseDesktopPackages)
+	packages := make([]string, 0, totalSize)
+
+	packages = append(packages, graphicsPackages...)
+	packages = append(packages, baseDesktopPackages...)
+	packages = append(packages, desktopPackages...)
+
+	return packages
 }
 
-func installCosmic() error {
-	base := []string{
-		"prismlinux-cosmic-settings",
-		"cosmic-files",
-		"cosmic-greeter",
-		"loupe",
-		"ghossty",
+// configureLightDM sets up LightDM configuration
+func configureLightDM() error {
+	config := "[SeatDefaults]\ngreeter-session=lightdm-gtk-greeter\n"
+	if err := utils.AppendFile("/mnt/etc/lightdm/lightdm.conf", config); err != nil {
+		utils.LogError("Failed to configure LightDM: %v", err)
+		return err
 	}
-	return installAndEnable(buildPackages(base), "cosmic-greeter", "Enabling Cosmic Greeter", nil)
-}
-
-func installCinnamon() error {
-	base := []string{
-		"prismlinux-cinnamon-settings",
-		"nemo",
-		"loupe",
-		"ghossty",
-		"lightdm",
-		"lightdm-gtk-greeter",
-		"lightdm-gtk-greeter-settings",
-	}
-	post := func() error {
-		utils.FilesEval(
-			utils.AppendFile(
-				"/mnt/etc/lightdm/lightdm.conf",
-				"[SeatDefaults]\ngreeter-session=lightdm-gtk-greeter\n",
-			),
-			"Add lightdm greeter",
-		)
-		return nil
-	}
-	return installAndEnable(buildPackages(base), "lightdm", "Enabling LightDM", post)
-}
-
-// -------------[WM]-------------
-
-func InstallHyprland() error {
-	base := []string{
-		"prismlinux-hyprland-quickshellbase",
-		"sddm",
-	}
-	return installAndEnable(buildPackages(base), "sddm", "Enable SDDM", nil)
+	utils.LogInfo("LightDM configuration applied")
+	return nil
 }

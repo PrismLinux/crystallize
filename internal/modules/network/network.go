@@ -6,7 +6,7 @@ import "crystallize-cli/internal/utils"
 func SetHostname(hostname string) {
 	utils.LogInfo("Setting hostname to %s", hostname)
 	_ = utils.CreateFile("/mnt/etc/hostname")
-	utils.FilesEval(utils.AppendFile("/mnt/etc/hostname", hostname), "set hostname")
+	utils.FilesEval(utils.AppendFile("/mnt/etc/hostname", hostname), "Set hostname")
 }
 
 // CreateHosts creates the /etc/hosts file

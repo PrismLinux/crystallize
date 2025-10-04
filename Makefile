@@ -1,5 +1,8 @@
+# CrystalNetwork Studio
+# <------------------->
 # crystallize-cli Makefile
 # Performance-optimized
+# <------------------->
 
 PROJECT_NAME := crystallize-cli
 BINARY := $(PROJECT_NAME)

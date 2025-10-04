@@ -12,6 +12,6 @@ func Crash(msg string, code int) {
 }
 
 // CrashWithFormat formats an error message and exits
-func CrashWithFormat(format string, code int, args ...interface{}) {
+func CrashWithFormat(format string, code int, args ...any) {
 	Crash(fmt.Sprintf(format, args...), code)
 }

@@ -28,47 +28,62 @@ func InstallDesktopSetup(desktopSetup DesktopSetup) error {
 	}
 
 	// Install common components for all graphical environments
-	if err := installNetworkManager(); err != nil {
-		return fmt.Errorf("failed to install NetworkManager: %w", err)
-	}
-	if err := installFirewalld(); err != nil {
-		return fmt.Errorf("failed to install Firewalld: %w", err)
+	if err := installCommonComponents(); err != nil {
+		return fmt.Errorf("failed to install common components: %w", err)
 	}
 
 	// Install the specific desktop environment
 	utils.LogInfo("Installing %s environment...", desktopSetup)
-	var installErr error
-	switch desktopSetup {
-	case DesktopPlasma:
-		installErr = installPlasma()
-	case DesktopGnome:
-		installErr = installGnome()
-	case DesktopCosmic:
-		installErr = installCosmic()
-	case DesktopCinnamon:
-		installErr = installCinnamon()
-	case DesktopHyprland:
-		installErr = InstallHyprland()
-	default:
-		// This case handles any unsupported desktop strings
-		return fmt.Errorf("unsupported desktop environment: %s", desktopSetup)
-	}
-
-	if installErr != nil {
-		return fmt.Errorf("failed to install %s: %w", desktopSetup, installErr)
+	if err := installDesktopEnvironment(desktopSetup); err != nil {
+		return fmt.Errorf("failed to install %s: %w", desktopSetup, err)
 	}
 
 	// Install common services
-	if err := installBluetooth(); err != nil {
-		return fmt.Errorf("failed to install Bluetooth: %w", err)
-	}
-	if err := installCups(); err != nil {
-		return fmt.Errorf("failed to install CUPS: %w", err)
-	}
-	if err := installTunedPPD(); err != nil {
-		return fmt.Errorf("failed to install Power Manager: %w", err)
+	if err := installCommonServices(); err != nil {
+		return fmt.Errorf("failed to install common services: %w", err)
 	}
 
 	utils.LogInfo("Desktop setup completed successfully.")
+	return nil
+}
+
+// installCommonComponents installs networking and firewall
+func installCommonComponents() error {
+	if err := installNetworkManager(); err != nil {
+		utils.LogError("NetworkManager installation failed: %v", err)
+		return err
+	}
+	if err := installFirewalld(); err != nil {
+		utils.LogError("Firewalld installation failed: %v", err)
+		return err
+	}
+	return nil
+}
+
+// installDesktopEnvironment routes to the appropriate installer
+func installDesktopEnvironment(desktop DesktopSetup) error {
+	config, exists := desktopConfigs[desktop]
+	if !exists {
+		err := fmt.Errorf("unsupported desktop environment: %s", desktop)
+		utils.LogError("%v", err)
+		return err
+	}
+	return config.install()
+}
+
+// installCommonServices installs bluetooth, printing, and power management
+func installCommonServices() error {
+	if err := installBluetooth(); err != nil {
+		utils.LogError("Bluetooth installation failed: %v", err)
+		return err
+	}
+	if err := installCups(); err != nil {
+		utils.LogError("CUPS installation failed: %v", err)
+		return err
+	}
+	if err := installTunedPPD(); err != nil {
+		utils.LogError("Power Manager installation failed: %v", err)
+		return err
+	}
 	return nil
 }

@@ -3,6 +3,7 @@ package utils
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,76 +18,84 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// Error types and handling
+
+type ErrorType int
+
+const (
+	ErrPackageNotFound ErrorType = iota
+	ErrDependencyConflict
+	ErrNetwork
+	ErrDiskSpace
+	ErrPermission
+	ErrDatabase
+	ErrValidation
+	ErrIO
+	ErrPasswordHash
+	ErrUnknown
+)
+
 type InstallError struct {
-	Type    InstallErrorType
+	Type    ErrorType
 	Message string
 	Package string
 }
 
-type InstallErrorType int
-
-const (
-	PackageNotFound InstallErrorType = iota
-	DependencyConflict
-	NetworkError
-	DiskSpaceError
-	PermissionError
-	DatabaseError
-	ValidationError
-	IOError
-	PasswordHashError
-	UnknownError
-)
-
 func (e *InstallError) Error() string {
-	switch e.Type {
-	case PackageNotFound:
-		return fmt.Sprintf("Package not found: %s", e.Package)
-	case DependencyConflict:
-		return fmt.Sprintf("Dependency conflict: %s", e.Message)
-	case NetworkError:
-		return fmt.Sprintf("Network error: %s", e.Message)
-	case DiskSpaceError:
-		return "Insufficient disk space"
-	case PermissionError:
-		return "Permission denied"
-	case DatabaseError:
-		return fmt.Sprintf("Database error: %s", e.Message)
-	case ValidationError:
-		return fmt.Sprintf("Validation error: %s", e.Message)
-	case IOError:
-		return fmt.Sprintf("I/O error: %s", e.Message)
-	case PasswordHashError:
-		return fmt.Sprintf("Password hashing error: %s", e.Message)
-	default:
-		return fmt.Sprintf("Unknown error: %s", e.Message)
+	messages := map[ErrorType]string{
+		ErrPackageNotFound:    fmt.Sprintf("Package not found: %s", e.Package),
+		ErrDependencyConflict: fmt.Sprintf("Dependency conflict: %s", e.Message),
+		ErrNetwork:            fmt.Sprintf("Network error: %s", e.Message),
+		ErrDiskSpace:          "Insufficient disk space",
+		ErrPermission:         "Permission denied",
+		ErrDatabase:           fmt.Sprintf("Database error: %s", e.Message),
+		ErrValidation:         fmt.Sprintf("Validation error: %s", e.Message),
+		ErrIO:                 fmt.Sprintf("I/O error: %s", e.Message),
+		ErrPasswordHash:       fmt.Sprintf("Password hashing error: %s", e.Message),
 	}
+
+	if msg, ok := messages[e.Type]; ok {
+		return msg
+	}
+	return fmt.Sprintf("Unknown error: %s", e.Message)
 }
 
 func (e *InstallError) SuggestSolution() string {
-	switch e.Type {
-	case PackageNotFound:
-		return fmt.Sprintf("Try:\n1. Check package name spelling: pacman -Ss %s\n2. Update databases: pacman -Sy\n3. Check if it's an AUR package", e.Package)
-	case DependencyConflict:
-		return "Try:\n1. Update system first: pacman -Syu\n2. Remove conflicting packages manually\n3. Use --overwrite flag if safe"
-	case NetworkError:
-		return "Try:\n1. Check internet connection\n2. Change mirror: reflector --latest 5 --sort rate --save /etc/pacman.d/mirrorlist\n3. Wait and retry later"
-	case DiskSpaceError:
-		return "Try:\n1. Free up disk space: pacman -Sc\n2. Check available space: df -h\n3. Clean package cache"
-	case PermissionError:
-		return "Try:\n1. Check if running as root\n2. Verify mount points are correct\n3. Check filesystem permissions"
-	case DatabaseError:
-		return "Try:\n1. Refresh databases: pacman -Sy\n2. Update keyring: pacman -S archlinux-keyring\n3. Clear cache: pacman -Sc"
-	default:
-		return "Check the log file for detailed error information and try installing packages individually."
+	solutions := map[ErrorType]string{
+		ErrPackageNotFound: fmt.Sprintf(
+			"Try:\n1. Check package name spelling: pacman -Ss %s\n2. Update databases: pacman -Sy\n3. Check if it's an AUR package",
+			e.Package,
+		),
+		ErrDependencyConflict: "Try:\n1. Update system first: pacman -Syu\n2. Remove conflicting packages manually\n3. Use --overwrite flag if safe",
+		ErrNetwork:            "Try:\n1. Check internet connection\n2. Change mirror: reflector --latest 5 --sort rate --save /etc/pacman.d/mirrorlist\n3. Wait and retry later",
+		ErrDiskSpace:          "Try:\n1. Free up disk space: pacman -Sc\n2. Check available space: df -h\n3. Clean package cache",
+		ErrPermission:         "Try:\n1. Check if running as root\n2. Verify mount points are correct\n3. Check filesystem permissions",
+		ErrDatabase:           "Try:\n1. Refresh databases: pacman -Sy\n2. Update keyring: pacman -S archlinux-keyring\n3. Clear cache: pacman -Sc",
 	}
+
+	if solution, ok := solutions[e.Type]; ok {
+		return solution
+	}
+	return "Check the log file for detailed error information and try installing packages individually."
 }
+
+// Progress tracking
+
+type Phase int
+
+const (
+	PhaseDownload Phase = iota
+	PhaseInstall
+	PhaseComplete
+)
 
 type ProgressConfig struct {
 	ShowETA         bool
 	DetailedLogging bool
 	ShowDownload    bool
 	SeparatePhases  bool
+	ThrottleMS      int
+	BarWidth        int
 }
 
 func NewProgressConfig() *ProgressConfig {
@@ -95,36 +104,30 @@ func NewProgressConfig() *ProgressConfig {
 		DetailedLogging: true,
 		ShowDownload:    true,
 		SeparatePhases:  false,
+		ThrottleMS:      500,
+		BarWidth:        60,
 	}
 }
 
-type ProgressPhase int
-
-const (
-	PhaseDownload ProgressPhase = iota
-	PhaseInstall
-	PhaseComplete
-)
-
 type ProgressTracker struct {
-	CurrentPhase    ProgressPhase
-	DownloadBar     *progressbar.ProgressBar
-	InstallBar      *progressbar.ProgressBar
-	CombinedBar     *progressbar.ProgressBar
-	PackageCount    int
-	DownloadedCount int64
-	InstalledCount  int64
-	Config          *ProgressConfig
+	phase           Phase
+	downloadBar     *progressbar.ProgressBar
+	installBar      *progressbar.ProgressBar
+	combinedBar     *progressbar.ProgressBar
+	packageCount    int
+	downloadedCount atomic.Int64
+	installedCount  atomic.Int64
+	config          *ProgressConfig
 	mu              sync.Mutex
-	lastUpdateTime  time.Time
+	lastUpdate      time.Time
 	smoothingWindow []int
 }
 
 func NewProgressTracker(description string, packageCount int, config *ProgressConfig) *ProgressTracker {
 	tracker := &ProgressTracker{
-		CurrentPhase: PhaseDownload,
-		PackageCount: packageCount,
-		Config:       config,
+		phase:        PhaseDownload,
+		packageCount: packageCount,
+		config:       config,
 	}
 
 	if !config.ShowETA {
@@ -132,59 +135,83 @@ func NewProgressTracker(description string, packageCount int, config *ProgressCo
 	}
 
 	if config.SeparatePhases && packageCount > 0 {
-		tracker.DownloadBar = progressbar.NewOptions(packageCount,
-			progressbar.OptionSetDescription(fmt.Sprintf("%s (downloading)", description)),
-			progressbar.OptionSetPredictTime(true),
-			progressbar.OptionShowCount(),
-			progressbar.OptionShowIts(),
-			progressbar.OptionSetItsString("pkg"),
-			progressbar.OptionThrottle(500*time.Millisecond),
-			progressbar.OptionSetWidth(50),
-			progressbar.OptionClearOnFinish(),
-		)
-
-		tracker.InstallBar = progressbar.NewOptions(packageCount,
-			progressbar.OptionSetDescription(fmt.Sprintf("%s (installing)", description)),
-			progressbar.OptionSetPredictTime(true),
-			progressbar.OptionShowCount(),
-			progressbar.OptionShowIts(),
-			progressbar.OptionSetItsString("pkg"),
-			progressbar.OptionThrottle(500*time.Millisecond),
-			progressbar.OptionSetWidth(50),
-			progressbar.OptionClearOnFinish(),
-		)
-	} else if packageCount > 0 {
-		totalSteps := packageCount
-		if config.ShowDownload {
-			totalSteps = packageCount * 2
-		}
-
-		tracker.CombinedBar = progressbar.NewOptions(totalSteps,
-			progressbar.OptionSetDescription(description),
-			progressbar.OptionSetPredictTime(true),
-			progressbar.OptionShowCount(),
-			progressbar.OptionShowIts(),
-			progressbar.OptionSetItsString("pkg"),
-			progressbar.OptionThrottle(800*time.Millisecond),
-			progressbar.OptionSetWidth(60),
-			progressbar.OptionClearOnFinish(),
-			progressbar.OptionEnableColorCodes(true),
-		)
+		tracker.initSeparateBars(description, packageCount, config)
 	} else {
-		tracker.CombinedBar = progressbar.NewOptions(-1,
-			progressbar.OptionSetDescription(description),
-			progressbar.OptionSpinnerType(14),
-			progressbar.OptionSetRenderBlankState(true),
-			progressbar.OptionThrottle(500*time.Millisecond),
-			progressbar.OptionClearOnFinish(),
-		)
+		tracker.initCombinedBar(description, packageCount, config)
 	}
 
 	return tracker
 }
 
+func (pt *ProgressTracker) initSeparateBars(description string, count int, config *ProgressConfig) {
+	throttle := time.Duration(config.ThrottleMS) * time.Millisecond
+
+	pt.downloadBar = progressbar.NewOptions(count,
+		progressbar.OptionSetDescription(fmt.Sprintf("%s (download)", description)),
+		progressbar.OptionSetPredictTime(true),
+		progressbar.OptionShowCount(),
+		progressbar.OptionShowIts(),
+		progressbar.OptionSetItsString("pkg"),
+		progressbar.OptionThrottle(throttle),
+		progressbar.OptionSetWidth(config.BarWidth),
+		progressbar.OptionClearOnFinish(),
+		progressbar.OptionEnableColorCodes(true),
+	)
+
+	pt.installBar = progressbar.NewOptions(count,
+		progressbar.OptionSetDescription(fmt.Sprintf("%s (install)", description)),
+		progressbar.OptionSetPredictTime(true),
+		progressbar.OptionShowCount(),
+		progressbar.OptionShowIts(),
+		progressbar.OptionSetItsString("pkg"),
+		progressbar.OptionThrottle(throttle),
+		progressbar.OptionSetWidth(config.BarWidth),
+		progressbar.OptionClearOnFinish(),
+		progressbar.OptionEnableColorCodes(true),
+	)
+}
+
+func (pt *ProgressTracker) initCombinedBar(description string, count int, config *ProgressConfig) {
+	throttle := time.Duration(config.ThrottleMS) * time.Millisecond
+
+	if count > 0 {
+		totalSteps := count
+		if config.ShowDownload {
+			totalSteps *= 2
+		}
+
+		pt.combinedBar = progressbar.NewOptions(totalSteps,
+			progressbar.OptionSetDescription(description),
+			progressbar.OptionSetPredictTime(true),
+			progressbar.OptionShowCount(),
+			progressbar.OptionShowIts(),
+			progressbar.OptionSetItsString("pkg"),
+			progressbar.OptionThrottle(throttle),
+			progressbar.OptionSetWidth(config.BarWidth),
+			progressbar.OptionClearOnFinish(),
+			progressbar.OptionEnableColorCodes(true),
+			progressbar.OptionSetTheme(progressbar.Theme{
+				Saucer:        "█",
+				SaucerHead:    "█",
+				SaucerPadding: "░",
+				BarStart:      "│",
+				BarEnd:        "│",
+			}),
+		)
+	} else {
+		pt.combinedBar = progressbar.NewOptions(-1,
+			progressbar.OptionSetDescription(description),
+			progressbar.OptionSpinnerType(14),
+			progressbar.OptionSetRenderBlankState(true),
+			progressbar.OptionThrottle(throttle),
+			progressbar.OptionClearOnFinish(),
+			progressbar.OptionEnableColorCodes(true),
+		)
+	}
+}
+
 func (pt *ProgressTracker) ProcessLine(line string) {
-	if !pt.Config.ShowETA {
+	if !pt.config.ShowETA {
 		return
 	}
 
@@ -193,65 +220,60 @@ func (pt *ProgressTracker) ProcessLine(line string) {
 
 	lineLower := strings.ToLower(line)
 
-	if pt.Config.ShowDownload && pt.CurrentPhase == PhaseDownload {
-		if pt.checkDownloadProgress(line, lineLower) {
+	if pt.config.ShowDownload && pt.phase == PhaseDownload {
+		if pt.processDownloadLine(line, lineLower) {
 			return
 		}
 	}
 
-	if pt.checkInstallProgress(line, lineLower) {
+	if pt.processInstallLine(line, lineLower) {
 		return
 	}
 
 	pt.checkPhaseTransition(lineLower)
 }
 
-func (pt *ProgressTracker) checkDownloadProgress(line, lineLower string) bool {
-	downloadPatterns := []string{
+func (pt *ProgressTracker) processDownloadLine(line, lineLower string) bool {
+	downloadKeywords := []string{
 		"downloading", "retrieving file", "fetching", ":: retrieving packages",
 		"resolving dependencies", "looking for conflicting packages", "packages to install:",
 	}
 
-	for _, pattern := range downloadPatterns {
-		if strings.Contains(lineLower, pattern) {
-			if percent := extractProgressPercentage(line); percent >= 0 {
-				pt.updateDownloadProgress(percent)
-				return true
-			}
+	for _, keyword := range downloadKeywords {
+		if !strings.Contains(lineLower, keyword) {
+			continue
+		}
+
+		if percent := extractPercentage(line); percent >= 0 {
+			pt.updateDownload(percent)
 			return true
 		}
+		return true
 	}
 
 	if strings.Contains(lineLower, ".pkg.tar") {
-		if percent := extractProgressPercentage(line); percent >= 0 {
+		if percent := extractPercentage(line); percent >= 0 {
 			if percent == 100 {
-				newCount := atomic.AddInt64(&pt.DownloadedCount, 1)
-				if newCount <= int64(pt.PackageCount) {
-					pt.updateDownloadProgress(int(float64(newCount) / float64(pt.PackageCount) * 100))
-					return true
-				}
+				pt.incrementDownloadCount()
 			} else {
-				pt.updateDownloadProgress(percent)
-				return true
+				pt.updateDownload(percent)
 			}
+			return true
 		}
 	}
 
 	if strings.Contains(lineLower, "downloading ") {
-		newCount := atomic.AddInt64(&pt.DownloadedCount, 1)
-		if newCount <= int64(pt.PackageCount) {
-			pt.updateDownloadProgress(int(float64(newCount) / float64(pt.PackageCount) * 100))
-			return true
-		}
+		pt.incrementDownloadCount()
+		return true
 	}
 
 	return false
 }
 
-func (pt *ProgressTracker) checkInstallProgress(line, lineLower string) bool {
+func (pt *ProgressTracker) processInstallLine(line, lineLower string) bool {
 	installPatterns := []struct {
-		pattern string
-		isStart bool
+		keyword     string
+		shouldCount bool
 	}{
 		{"installing", true},
 		{"upgrading", true},
@@ -262,25 +284,25 @@ func (pt *ProgressTracker) checkInstallProgress(line, lineLower string) bool {
 	}
 
 	for _, p := range installPatterns {
-		if strings.Contains(lineLower, p.pattern) {
-			if p.isStart {
-				if pt.extractAndCountPackage(line) {
-					return true
-				}
-			} else {
-				if pt.CurrentPhase == PhaseDownload {
-					pt.transitionToInstall()
-				}
+		if !strings.Contains(lineLower, p.keyword) {
+			continue
+		}
+
+		if p.shouldCount {
+			if pt.extractAndCountPackage(line) {
 				return true
 			}
+		} else {
+			if pt.phase == PhaseDownload {
+				pt.transitionToInstall()
+			}
+			return true
 		}
 	}
 
 	if strings.Contains(lineLower, "==>") &&
 		(strings.Contains(lineLower, "installing") || strings.Contains(lineLower, "upgrading")) {
-		if pt.extractAndCountPackage(line) {
-			return true
-		}
+		return pt.extractAndCountPackage(line)
 	}
 
 	return false
@@ -295,11 +317,8 @@ func (pt *ProgressTracker) extractAndCountPackage(line string) bool {
 
 	for _, pattern := range patterns {
 		if matches := pattern.FindStringSubmatch(line); len(matches) > 2 {
-			newCount := atomic.AddInt64(&pt.InstalledCount, 1)
-			if newCount <= int64(pt.PackageCount) {
-				pt.updateInstallProgress(int(newCount))
-				return true
-			}
+			pt.incrementInstallCount()
+			return true
 		}
 	}
 
@@ -308,67 +327,70 @@ func (pt *ProgressTracker) extractAndCountPackage(line string) bool {
 		strings.Contains(lineLower, "upgrading") ||
 		strings.Contains(lineLower, "reinstalling")) &&
 		!strings.Contains(lineLower, "packages") {
-
-		newCount := atomic.AddInt64(&pt.InstalledCount, 1)
-		if newCount <= int64(pt.PackageCount) {
-			pt.updateInstallProgress(int(newCount))
-			return true
-		}
+		pt.incrementInstallCount()
+		return true
 	}
 
 	return false
 }
 
-func (pt *ProgressTracker) checkPhaseTransition(lineLower string) {
-	if pt.CurrentPhase == PhaseDownload {
-		transitionPatterns := []string{
-			":: processing package changes", ":: running pre-transaction hooks",
-			"checking keyring", "checking package integrity", "loading package files",
-			"checking available disk space", ":: installing packages", "==> installing",
-		}
-
-		for _, pattern := range transitionPatterns {
-			if strings.Contains(lineLower, pattern) {
-				pt.transitionToInstall()
-				return
-			}
-		}
+func (pt *ProgressTracker) incrementDownloadCount() {
+	newCount := pt.downloadedCount.Add(1)
+	if int(newCount) <= pt.packageCount {
+		percent := int(float64(newCount) / float64(pt.packageCount) * 100)
+		pt.updateDownload(percent)
 	}
 }
 
-func (pt *ProgressTracker) updateDownloadProgress(percent int) {
-	now := time.Now()
-	if now.Sub(pt.lastUpdateTime) < 500*time.Millisecond {
-		return
-	}
-	pt.lastUpdateTime = now
-
-	smoothedProgress := pt.smoothProgress(percent)
-
-	if pt.Config.SeparatePhases && pt.DownloadBar != nil {
-		pt.DownloadBar.Set(int(float64(smoothedProgress) * float64(pt.PackageCount) / 100))
-	} else if pt.CombinedBar != nil && pt.PackageCount > 0 {
-		progress := int(float64(smoothedProgress) * float64(pt.PackageCount) / 100)
-		pt.CombinedBar.Set(progress)
+func (pt *ProgressTracker) incrementInstallCount() {
+	newCount := pt.installedCount.Add(1)
+	if int(newCount) <= pt.packageCount {
+		pt.updateInstall(int(newCount))
 	}
 }
 
-func (pt *ProgressTracker) updateInstallProgress(count int) {
-	now := time.Now()
-	if now.Sub(pt.lastUpdateTime) < 500*time.Millisecond {
+func (pt *ProgressTracker) updateDownload(percent int) {
+	if !pt.shouldUpdate() {
 		return
 	}
-	pt.lastUpdateTime = now
 
-	if pt.Config.SeparatePhases && pt.InstallBar != nil {
-		pt.InstallBar.Set(count)
-	} else if pt.CombinedBar != nil && pt.PackageCount > 0 {
-		if pt.Config.ShowDownload {
-			pt.CombinedBar.Set(pt.PackageCount + count)
-		} else {
-			pt.CombinedBar.Set(count)
-		}
+	smoothed := pt.smoothProgress(percent)
+
+	if pt.config.SeparatePhases && pt.downloadBar != nil {
+		progress := int(float64(smoothed) * float64(pt.packageCount) / 100)
+		pt.downloadBar.Set(progress)
+	} else if pt.combinedBar != nil && pt.packageCount > 0 {
+		progress := int(float64(smoothed) * float64(pt.packageCount) / 100)
+		pt.combinedBar.Set(progress)
 	}
+}
+
+func (pt *ProgressTracker) updateInstall(count int) {
+	if !pt.shouldUpdate() {
+		return
+	}
+
+	if pt.config.SeparatePhases && pt.installBar != nil {
+		pt.installBar.Set(count)
+	} else if pt.combinedBar != nil && pt.packageCount > 0 {
+		offset := 0
+		if pt.config.ShowDownload {
+			offset = pt.packageCount
+		}
+		pt.combinedBar.Set(offset + count)
+	}
+}
+
+func (pt *ProgressTracker) shouldUpdate() bool {
+	now := time.Now()
+	throttle := time.Duration(pt.config.ThrottleMS) * time.Millisecond
+
+	if now.Sub(pt.lastUpdate) < throttle {
+		return false
+	}
+
+	pt.lastUpdate = now
+	return true
 }
 
 func (pt *ProgressTracker) smoothProgress(newProgress int) int {
@@ -384,21 +406,45 @@ func (pt *ProgressTracker) smoothProgress(newProgress int) int {
 	return sum / len(pt.smoothingWindow)
 }
 
-func (pt *ProgressTracker) transitionToInstall() {
-	if pt.CurrentPhase != PhaseDownload {
+func (pt *ProgressTracker) checkPhaseTransition(lineLower string) {
+	if pt.phase != PhaseDownload {
 		return
 	}
 
-	pt.CurrentPhase = PhaseInstall
+	transitionKeywords := []string{
+		":: processing package changes",
+		":: running pre-transaction hooks",
+		"checking keyring",
+		"checking package integrity",
+		"loading package files",
+		"checking available disk space",
+		":: installing packages",
+		"==> installing",
+	}
 
-	if pt.Config.SeparatePhases {
-		if pt.DownloadBar != nil {
-			pt.DownloadBar.Finish()
-			pt.DownloadBar.Clear()
+	for _, keyword := range transitionKeywords {
+		if strings.Contains(lineLower, keyword) {
+			pt.transitionToInstall()
+			return
+		}
+	}
+}
+
+func (pt *ProgressTracker) transitionToInstall() {
+	if pt.phase != PhaseDownload {
+		return
+	}
+
+	pt.phase = PhaseInstall
+
+	if pt.config.SeparatePhases {
+		if pt.downloadBar != nil {
+			pt.downloadBar.Finish()
+			pt.downloadBar.Clear()
 			fmt.Println()
 		}
-	} else if pt.CombinedBar != nil && pt.Config.ShowDownload {
-		pt.CombinedBar.Set(pt.PackageCount)
+	} else if pt.combinedBar != nil && pt.config.ShowDownload {
+		pt.combinedBar.Set(pt.packageCount)
 		time.Sleep(100 * time.Millisecond)
 	}
 }
@@ -407,232 +453,52 @@ func (pt *ProgressTracker) Finish() {
 	pt.mu.Lock()
 	defer pt.mu.Unlock()
 
-	if pt.Config.SeparatePhases {
-		if pt.DownloadBar != nil {
-			pt.DownloadBar.Finish()
-			pt.DownloadBar.Clear()
-			fmt.Println()
-		}
-		if pt.InstallBar != nil {
-			pt.InstallBar.Finish()
-			pt.InstallBar.Clear()
-			fmt.Println()
-		}
-	} else if pt.CombinedBar != nil {
-		pt.CombinedBar.Finish()
-		pt.CombinedBar.Clear()
+	if pt.config.SeparatePhases {
+		pt.finishBar(pt.downloadBar)
+		pt.finishBar(pt.installBar)
+	} else {
+		pt.finishBar(pt.combinedBar)
+	}
+}
+
+func (pt *ProgressTracker) finishBar(bar *progressbar.ProgressBar) {
+	if bar != nil {
+		bar.Finish()
+		bar.Clear()
 		fmt.Println()
 	}
 }
 
 func (pt *ProgressTracker) KeepSpinnerAlive(cmd *exec.Cmd) *time.Ticker {
-	if pt.CombinedBar != nil && pt.PackageCount == 0 {
-		ticker := time.NewTicker(200 * time.Millisecond)
-		go func() {
-			for range ticker.C {
-				if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
-					return
-				}
-				pt.CombinedBar.Add(0)
-			}
-		}()
-		return ticker
-	}
-	return nil
-}
-
-func extractProgressPercentage(line string) int {
-	patterns := []*regexp.Regexp{
-		regexp.MustCompile(`(\d+)%`),
-		regexp.MustCompile(`\[(\d+)%\]`),
-		regexp.MustCompile(`\((\d+)%\)`),
-		regexp.MustCompile(`(\d+)/(\d+)`),
-		regexp.MustCompile(`\((\d+)/(\d+)\)`),
-		regexp.MustCompile(`(\d+(?:\.\d+)?)\s*(?:of|/)\s*(\d+(?:\.\d+)?)\s*(?:MB|KB|GB|MiB|KiB|GiB|bytes?)`),
-		regexp.MustCompile(`(\d+(?:\.\d+)?[KMGT]?i?B)\s*/\s*(\d+(?:\.\d+)?[KMGT]?i?B)`),
+	if pt.combinedBar == nil || pt.packageCount != 0 {
+		return nil
 	}
 
-	for _, pattern := range patterns {
-		if matches := pattern.FindStringSubmatch(line); len(matches) > 1 {
-			if val, err := strconv.ParseFloat(matches[1], 64); err == nil {
-				if len(matches) > 2 {
-					if total, err := strconv.ParseFloat(matches[2], 64); err == nil && total > 0 {
-						percent := int(val / total * 100)
-						if percent >= 0 && percent <= 100 {
-							return percent
-						}
-					}
-				} else {
-					percent := int(val)
-					if percent >= 0 && percent <= 100 {
-						return percent
-					}
-				}
+	ticker := time.NewTicker(200 * time.Millisecond)
+	go func() {
+		for range ticker.C {
+			if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
+				return
 			}
+			pt.combinedBar.Add(0)
 		}
-	}
-	return -1
+	}()
+	return ticker
 }
 
-func validatePackages(pkgs []string) error {
+// Package validation and installation
+
+func ValidatePackages(pkgs []string) error {
 	for _, pkg := range pkgs {
 		if pkg == "" || strings.Contains(pkg, " ") || strings.HasPrefix(pkg, "-") {
 			return &InstallError{
-				Type:    ValidationError,
+				Type:    ErrValidation,
 				Message: fmt.Sprintf("Invalid package name: %s", pkg),
 				Package: pkg,
 			}
 		}
 	}
 	return nil
-}
-
-func parseErrorFromOutput(exitCode int, logPath string) *InstallError {
-	content, err := os.ReadFile(logPath)
-	if err != nil {
-		return &InstallError{
-			Type:    IOError,
-			Message: fmt.Sprintf("Command failed with exit code %d. Could not read log at %s", exitCode, logPath),
-		}
-	}
-
-	output := strings.ToLower(string(content))
-	lines := strings.Split(output, "\n")
-
-	if strings.Contains(output, "target not found") || strings.Contains(output, "package not found") {
-		for _, line := range lines {
-			if strings.Contains(line, "target not found") {
-				if idx := strings.Index(line, "target not found: "); idx != -1 {
-					pkgName := strings.Fields(line[idx+18:])[0]
-					return &InstallError{Type: PackageNotFound, Package: pkgName}
-				}
-			}
-		}
-		return &InstallError{Type: PackageNotFound, Package: "unknown package"}
-	}
-
-	if strings.Contains(output, "conflicting dependencies") ||
-		strings.Contains(output, "dependency cycle") ||
-		strings.Contains(output, "conflicts with") {
-		for _, line := range lines {
-			if strings.Contains(line, "conflict") {
-				return &InstallError{Type: DependencyConflict, Message: line}
-			}
-		}
-		return &InstallError{Type: DependencyConflict, Message: "Unknown dependency conflict"}
-	}
-
-	if strings.Contains(output, "no space left") ||
-		strings.Contains(output, "disk full") ||
-		strings.Contains(output, "insufficient space") {
-		return &InstallError{Type: DiskSpaceError}
-	}
-
-	if strings.Contains(output, "permission denied") ||
-		strings.Contains(output, "operation not permitted") {
-		return &InstallError{Type: PermissionError}
-	}
-
-	if strings.Contains(output, "failed retrieving file") ||
-		strings.Contains(output, "connection timed out") ||
-		strings.Contains(output, "temporary failure in name resolution") ||
-		strings.Contains(output, "could not resolve host") {
-		return &InstallError{
-			Type:    NetworkError,
-			Message: "Failed to download packages. Check network connection.",
-		}
-	}
-
-	if strings.Contains(output, "database") && strings.Contains(output, "corrupt") {
-		return &InstallError{
-			Type:    DatabaseError,
-			Message: "Package database is corrupted. Run pacman -Sy to refresh.",
-		}
-	}
-
-	if strings.Contains(output, "signature") && strings.Contains(output, "invalid") {
-		return &InstallError{
-			Type:    DatabaseError,
-			Message: "Invalid package signatures. Update keyring or refresh databases.",
-		}
-	}
-
-	return &InstallError{
-		Type:    UnknownError,
-		Message: fmt.Sprintf("Command failed with exit code %d. Check log at %s", exitCode, logPath),
-	}
-}
-
-// Fixed copy functions that handle temporary files properly
-func CopyFileWithFilter(src, dst string) error {
-	// Skip temporary and problematic files
-	filename := filepath.Base(src)
-	skipPatterns := []string{
-		"s.dirmngr", // GnuPG temporary socket
-		"S.dirmngr", // GnuPG temporary socket (capital S)
-		".#",        // Emacs temporary files
-		"#",         // Various temporary files
-		".lock",     // Lock files
-		".tmp",      // Temporary files
-		"~",         // Backup files
-	}
-
-	for _, pattern := range skipPatterns {
-		if strings.Contains(filename, pattern) {
-			LogWarn("Skipping temporary/problematic file: %s", src)
-			return nil
-		}
-	}
-
-	// Check if source exists and is readable
-	if _, err := os.Stat(src); err != nil {
-		if os.IsNotExist(err) {
-			LogWarn("Source file does not exist: %s", src)
-			return nil // Don't error on missing files
-		}
-		return fmt.Errorf("cannot access source file %s: %w", src, err)
-	}
-
-	return CopyFile(src, dst)
-}
-
-func CopyDirectoryWithFilter(src, dst string) error {
-	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			LogWarn("Error accessing path %s: %v", path, err)
-			return nil // Continue with other files
-		}
-
-		// Calculate relative path
-		relPath, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-
-		dstPath := filepath.Join(dst, relPath)
-
-		// Skip problematic files and directories
-		filename := info.Name()
-		skipPatterns := []string{
-			"s.dirmngr", "S.dirmngr", ".#", "#", ".lock", ".tmp", "~",
-		}
-
-		for _, pattern := range skipPatterns {
-			if strings.Contains(filename, pattern) {
-				LogWarn("Skipping temporary file/directory: %s", path)
-				if info.IsDir() {
-					return filepath.SkipDir
-				}
-				return nil
-			}
-		}
-
-		if info.IsDir() {
-			return CreateDirectory(dstPath)
-		}
-
-		return CopyFileWithFilter(path, dstPath)
-	})
 }
 
 func InstallBase(pkgs []string) error {
@@ -644,26 +510,22 @@ func InstallBaseWithConfig(pkgs []string, config *ProgressConfig) error {
 		return nil
 	}
 
-	if err := validatePackages(pkgs); err != nil {
+	if err := ValidatePackages(pkgs); err != nil {
 		return err
 	}
 
 	LogInfo("Installing base packages: %s", strings.Join(pkgs, ", "))
 
-	logFile, err := os.CreateTemp("", "crystallize-install-*.log")
+	logFile, err := createTempLog("crystallize-install-*.log")
 	if err != nil {
-		return &InstallError{
-			Type:    IOError,
-			Message: fmt.Sprintf("Failed to create temp log file: %v", err),
-		}
+		return err
 	}
-	defer os.Remove(logFile.Name())
-	defer logFile.Close()
+	defer cleanupLog(logFile)
 
 	args := append([]string{"/mnt"}, pkgs...)
 	cmd := exec.Command("pacstrap", args...)
 
-	return execWithProgressTracker(cmd, "Install base packages", logFile, config, len(pkgs))
+	return executeWithProgress(cmd, "Install base packages", logFile, config, len(pkgs))
 }
 
 func Install(pkgs []string) error {
@@ -675,7 +537,7 @@ func InstallWithConfig(pkgs []string, config *ProgressConfig) error {
 		return nil
 	}
 
-	if err := validatePackages(pkgs); err != nil {
+	if err := ValidatePackages(pkgs); err != nil {
 		return err
 	}
 
@@ -683,20 +545,16 @@ func InstallWithConfig(pkgs []string, config *ProgressConfig) error {
 		LogInfo("Installing packages in chroot: %s", strings.Join(pkgs, ", "))
 	}
 
-	logFile, err := os.CreateTemp("", "crystallize-chroot-install-*.log")
+	logFile, err := createTempLog("crystallize-chroot-install-*.log")
 	if err != nil {
-		return &InstallError{
-			Type:    IOError,
-			Message: fmt.Sprintf("Failed to create temp log file: %v", err),
-		}
+		return err
 	}
-	defer os.Remove(logFile.Name())
-	defer logFile.Close()
+	defer cleanupLog(logFile)
 
 	args := append([]string{"/mnt", "pacman", "-S", "--noconfirm", "--needed"}, pkgs...)
 	cmd := exec.Command("arch-chroot", args...)
 
-	return execWithProgressTracker(cmd, "Install packages", logFile, config, len(pkgs))
+	return executeWithProgress(cmd, "Install packages", logFile, config, len(pkgs))
 }
 
 func UpdateDatabases() error {
@@ -708,18 +566,14 @@ func UpdateDatabasesWithConfig(config *ProgressConfig) error {
 		LogInfo("Updating package databases")
 	}
 
-	logFile, err := os.CreateTemp("", "crystallize-update-*.log")
+	logFile, err := createTempLog("crystallize-update-*.log")
 	if err != nil {
-		return &InstallError{
-			Type:    IOError,
-			Message: fmt.Sprintf("Failed to create temp log file: %v", err),
-		}
+		return err
 	}
-	defer os.Remove(logFile.Name())
-	defer logFile.Close()
+	defer cleanupLog(logFile)
 
 	cmd := exec.Command("arch-chroot", "/mnt", "pacman", "-Sy", "--noconfirm")
-	return execWithProgressTracker(cmd, "Update package databases", logFile, config, 0)
+	return executeWithProgress(cmd, "Update package databases", logFile, config, 0)
 }
 
 func UpgradeSystem() error {
@@ -731,87 +585,14 @@ func UpgradeSystemWithConfig(config *ProgressConfig) error {
 		LogInfo("Upgrading system packages")
 	}
 
-	logFile, err := os.CreateTemp("", "crystallize-upgrade-*.log")
+	logFile, err := createTempLog("crystallize-upgrade-*.log")
 	if err != nil {
-		return &InstallError{
-			Type:    IOError,
-			Message: fmt.Sprintf("Failed to create temp log file: %v", err),
-		}
+		return err
 	}
-	defer os.Remove(logFile.Name())
-	defer logFile.Close()
+	defer cleanupLog(logFile)
 
 	cmd := exec.Command("arch-chroot", "/mnt", "pacman", "-Syu", "--noconfirm")
-	return execWithProgressTracker(cmd, "Upgrade system packages", logFile, config, 0)
-}
-
-func execWithProgressTracker(cmd *exec.Cmd, description string, logFile *os.File, config *ProgressConfig, packageCount int) error {
-	tracker := NewProgressTracker(description, packageCount, config)
-	defer tracker.Finish()
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return &InstallError{Type: IOError, Message: fmt.Sprintf("Failed to create stdout pipe: %v", err)}
-	}
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return &InstallError{Type: IOError, Message: fmt.Sprintf("Failed to create stderr pipe: %v", err)}
-	}
-
-	if err := cmd.Start(); err != nil {
-		return &InstallError{Type: IOError, Message: fmt.Sprintf("Failed to start process: %v", err)}
-	}
-
-	ticker := tracker.KeepSpinnerAlive(cmd)
-	if ticker != nil {
-		defer ticker.Stop()
-	}
-
-	wg := &errgroup.Group{}
-
-	wg.Go(func() error {
-		scanner := bufio.NewScanner(stdout)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if config.DetailedLogging {
-				fmt.Fprintln(logFile, line)
-			}
-			tracker.ProcessLine(line)
-		}
-		return scanner.Err()
-	})
-
-	wg.Go(func() error {
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			line := scanner.Text()
-			if config.DetailedLogging {
-				fmt.Fprintln(logFile, line)
-			}
-			tracker.ProcessLine(line)
-		}
-		return scanner.Err()
-	})
-
-	if err := wg.Wait(); err != nil {
-		return &InstallError{Type: IOError, Message: fmt.Sprintf("Error reading command output: %v", err)}
-	}
-
-	if err := cmd.Wait(); err != nil {
-		var exitCode int
-		if exitError, ok := err.(*exec.ExitError); ok {
-			exitCode = exitError.ExitCode()
-		} else {
-			exitCode = 1
-		}
-		return parseErrorFromOutput(exitCode, logFile.Name())
-	}
-
-	if config.DetailedLogging {
-		LogInfo("%s completed successfully", description)
-	}
-	return nil
+	return executeWithProgress(cmd, "Upgrade system packages", logFile, config, 0)
 }
 
 func CheckInstalled(pkgs []string) ([]string, error) {
@@ -825,4 +606,296 @@ func CheckInstalled(pkgs []string) ([]string, error) {
 	}
 
 	return notInstalled, nil
+}
+
+// File operations with filtering
+
+var skipPatterns = []string{
+	"s.dirmngr", "S.dirmngr", ".#", "#", ".lock", ".tmp", "~",
+}
+
+func CopyFileWithFilter(src, dst string) error {
+	filename := filepath.Base(src)
+
+	for _, pattern := range skipPatterns {
+		if strings.Contains(filename, pattern) {
+			LogWarn("Skipping temporary/problematic file: %s", src)
+			return nil
+		}
+	}
+
+	if _, err := os.Stat(src); err != nil {
+		if os.IsNotExist(err) {
+			LogWarn("Source file does not exist: %s", src)
+			return nil
+		}
+		return fmt.Errorf("cannot access source file %s: %w", src, err)
+	}
+
+	return CopyFile(src, dst)
+}
+
+func CopyDirectoryWithFilter(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			LogWarn("Error accessing path %s: %v", path, err)
+			return nil
+		}
+
+		relPath, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+
+		dstPath := filepath.Join(dst, relPath)
+
+		if shouldSkip(info) {
+			LogWarn("Skipping temporary file/directory: %s", path)
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		if info.IsDir() {
+			return CreateDirectory(dstPath)
+		}
+
+		return CopyFileWithFilter(path, dstPath)
+	})
+}
+
+func shouldSkip(info os.FileInfo) bool {
+	filename := info.Name()
+	for _, pattern := range skipPatterns {
+		if strings.Contains(filename, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// Helper functions
+
+func createTempLog(pattern string) (*os.File, error) {
+	logFile, err := os.CreateTemp("", pattern)
+	if err != nil {
+		return nil, &InstallError{
+			Type:    ErrIO,
+			Message: fmt.Sprintf("Failed to create temp log file: %v", err),
+		}
+	}
+	return logFile, nil
+}
+
+func cleanupLog(logFile *os.File) {
+	if logFile != nil {
+		logFile.Close()
+		os.Remove(logFile.Name())
+	}
+}
+
+func executeWithProgress(cmd *exec.Cmd, description string, logFile *os.File, config *ProgressConfig, packageCount int) error {
+	tracker := NewProgressTracker(description, packageCount, config)
+	defer tracker.Finish()
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return &InstallError{Type: ErrIO, Message: fmt.Sprintf("Failed to create stdout pipe: %v", err)}
+	}
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return &InstallError{Type: ErrIO, Message: fmt.Sprintf("Failed to create stderr pipe: %v", err)}
+	}
+
+	if err := cmd.Start(); err != nil {
+		return &InstallError{Type: ErrIO, Message: fmt.Sprintf("Failed to start process: %v", err)}
+	}
+
+	ticker := tracker.KeepSpinnerAlive(cmd)
+	if ticker != nil {
+		defer ticker.Stop()
+	}
+
+	wg := &errgroup.Group{}
+
+	wg.Go(func() error {
+		return scanOutput(stdout, logFile, tracker, config)
+	})
+
+	wg.Go(func() error {
+		return scanOutput(stderr, logFile, tracker, config)
+	})
+
+	if err := wg.Wait(); err != nil {
+		return &InstallError{Type: ErrIO, Message: fmt.Sprintf("Error reading command output: %v", err)}
+	}
+
+	if err := cmd.Wait(); err != nil {
+		exitCode := getExitCode(err)
+		return parseError(exitCode, logFile.Name())
+	}
+
+	if config.DetailedLogging {
+		LogInfo("%s completed successfully", description)
+	}
+	return nil
+}
+
+func scanOutput(reader io.Reader, logFile *os.File, tracker *ProgressTracker, config *ProgressConfig) error {
+	scanner := bufio.NewScanner(reader)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if config.DetailedLogging {
+			fmt.Fprintln(logFile, line)
+		}
+		tracker.ProcessLine(line)
+	}
+	return scanner.Err()
+}
+
+func getExitCode(err error) int {
+	if exitError, ok := err.(*exec.ExitError); ok {
+		return exitError.ExitCode()
+	}
+	return 1
+}
+
+func extractPercentage(line string) int {
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`(\d+)%`),
+		regexp.MustCompile(`\[(\d+)%\]`),
+		regexp.MustCompile(`\((\d+)%\)`),
+		regexp.MustCompile(`(\d+)/(\d+)`),
+		regexp.MustCompile(`\((\d+)/(\d+)\)`),
+		regexp.MustCompile(`(\d+(?:\.\d+)?)\s*(?:of|/)\s*(\d+(?:\.\d+)?)\s*(?:MB|KB|GB|MiB|KiB|GiB|bytes?)`),
+		regexp.MustCompile(`(\d+(?:\.\d+)?[KMGT]?i?B)\s*/\s*(\d+(?:\.\d+)?[KMGT]?i?B)`),
+	}
+
+	for _, pattern := range patterns {
+		matches := pattern.FindStringSubmatch(line)
+		if len(matches) <= 1 {
+			continue
+		}
+
+		val, err := strconv.ParseFloat(matches[1], 64)
+		if err != nil {
+			continue
+		}
+
+		if len(matches) > 2 {
+			total, err := strconv.ParseFloat(matches[2], 64)
+			if err == nil && total > 0 {
+				percent := int(val / total * 100)
+				if percent >= 0 && percent <= 100 {
+					return percent
+				}
+			}
+		} else {
+			percent := int(val)
+			if percent >= 0 && percent <= 100 {
+				return percent
+			}
+		}
+	}
+	return -1
+}
+
+func parseError(exitCode int, logPath string) *InstallError {
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		return &InstallError{
+			Type:    ErrIO,
+			Message: fmt.Sprintf("Command failed with exit code %d. Could not read log at %s", exitCode, logPath),
+		}
+	}
+
+	output := strings.ToLower(string(content))
+	lines := strings.Split(output, "\n")
+
+	errorChecks := []struct {
+		keywords []string
+		handler  func([]string) *InstallError
+	}{
+		{
+			keywords: []string{"target not found", "package not found"},
+			handler:  func(lines []string) *InstallError { return parsePackageNotFound(lines) },
+		},
+		{
+			keywords: []string{"conflicting dependencies", "dependency cycle", "conflicts with"},
+			handler:  func(lines []string) *InstallError { return parseDependencyConflict(lines) },
+		},
+		{
+			keywords: []string{"no space left", "disk full", "insufficient space"},
+			handler:  func(lines []string) *InstallError { return &InstallError{Type: ErrDiskSpace} },
+		},
+		{
+			keywords: []string{"permission denied", "operation not permitted"},
+			handler:  func(lines []string) *InstallError { return &InstallError{Type: ErrPermission} },
+		},
+		{
+			keywords: []string{"failed retrieving file", "connection timed out", "temporary failure in name resolution", "could not resolve host"},
+			handler: func(lines []string) *InstallError {
+				return &InstallError{Type: ErrNetwork, Message: "Failed to download packages. Check network connection."}
+			},
+		},
+		{
+			keywords: []string{"database", "corrupt"},
+			handler: func(lines []string) *InstallError {
+				return &InstallError{Type: ErrDatabase, Message: "Package database is corrupted. Run pacman -Sy to refresh."}
+			},
+		},
+		{
+			keywords: []string{"signature", "invalid"},
+			handler: func(lines []string) *InstallError {
+				return &InstallError{Type: ErrDatabase, Message: "Invalid package signatures. Update keyring or refresh databases."}
+			},
+		},
+	}
+
+	for _, check := range errorChecks {
+		if containsAnyKeyword(output, check.keywords) {
+			return check.handler(lines)
+		}
+	}
+
+	return &InstallError{
+		Type:    ErrUnknown,
+		Message: fmt.Sprintf("Command failed with exit code %d. Check log at %s", exitCode, logPath),
+	}
+}
+
+func containsAnyKeyword(text string, keywords []string) bool {
+	for _, keyword := range keywords {
+		if strings.Contains(text, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+func parsePackageNotFound(lines []string) *InstallError {
+	for _, line := range lines {
+		if !strings.Contains(line, "target not found") {
+			continue
+		}
+
+		if idx := strings.Index(line, "target not found: "); idx != -1 {
+			fields := strings.Fields(line[idx+18:])
+			if len(fields) > 0 {
+				return &InstallError{Type: ErrPackageNotFound, Package: fields[0]}
+			}
+		}
+	}
+	return &InstallError{Type: ErrPackageNotFound, Package: "unknown package"}
+}
+
+func parseDependencyConflict(lines []string) *InstallError {
+	for _, line := range lines {
+		if strings.Contains(line, "conflict") {
+			return &InstallError{Type: ErrDependencyConflict, Message: line}
+		}
+	}
+	return &InstallError{Type: ErrDependencyConflict, Message: "Unknown dependency conflict"}
 }

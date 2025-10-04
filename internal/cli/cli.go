@@ -17,7 +17,7 @@ var rootCmd = &cobra.Command{
 	Use:     "crystallize-cli",
 	Short:   "Crystallize Linux installation tool",
 	Long:    "A comprehensive PrismLinux installation tool with automated partitioning, package management, and desktop environment setup.",
-	Version: "0.3.0",
+	Version: "0.3.1",
 }
 
 var configCmd = &cobra.Command{

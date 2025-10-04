@@ -4,219 +4,428 @@ import (
 	"crystallize-cli/internal/utils"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strings"
 )
 
-// NvidiaDriver represents different NVIDIA driver versions
-type NvidiaDriver int
+// DriverVariant represents NVIDIA driver variants
+type DriverVariant int
 
 const (
-	NvidiaOpen NvidiaDriver = iota
-	NvidiaLegacy470
-	NvidiaLegacy390
-	NvidiaLegacy340
+	DriverOpen DriverVariant = iota
+	DriverLegacy470
+	DriverLegacy390
+	DriverLegacy340
+	DriverNone
 )
 
-// Packages returns the required packages for the driver
-func (d NvidiaDriver) Packages() []string {
-	switch d {
-	case NvidiaOpen:
-		return []string{
-			"dkms",
+// String returns the driver name
+func (d DriverVariant) String() string {
+	names := map[DriverVariant]string{
+		DriverOpen:      "nvidia-open (latest)",
+		DriverLegacy470: "nvidia-470xx (legacy)",
+		DriverLegacy390: "nvidia-390xx (legacy)",
+		DriverLegacy340: "nvidia-340xx (legacy)",
+		DriverNone:      "none",
+	}
+	return names[d]
+}
+
+// Packages returns required packages for the driver
+func (d DriverVariant) Packages() []string {
+	basePackages := []string{"dkms"}
+
+	packageSets := map[DriverVariant][]string{
+		DriverOpen: {
 			"nvidia-open",
 			"nvidia-open-dkms",
 			"nvidia-utils",
 			"egl-wayland",
-		}
-	case NvidiaLegacy470:
-		return []string{
-			"dkms",
+		},
+		DriverLegacy470: {
 			"nvidia-470xx-dkms",
 			"nvidia-470xx-utils",
 			"egl-wayland",
-		}
-	case NvidiaLegacy390:
-		return []string{
-			"dkms",
+		},
+		DriverLegacy390: {
 			"nvidia-390xx-dkms",
 			"nvidia-390xx-utils",
 			"egl-wayland",
-		}
-	case NvidiaLegacy340:
-		return []string{
-			"dkms",
+		},
+		DriverLegacy340: {
 			"nvidia-340xx-dkms",
 			"nvidia-340xx-utils",
-		}
-	default:
+		},
+	}
+
+	packages := packageSets[d]
+	if len(packages) == 0 {
 		return []string{}
 	}
+
+	return append(basePackages, packages...)
 }
 
-// detectNvidiaGPU detects NVIDIA GPU information
-func detectNvidiaGPU() (string, error) {
+// RequiresKernelModules indicates if driver needs kernel modules
+func (d DriverVariant) RequiresKernelModules() bool {
+	return d != DriverLegacy340 && d != DriverNone
+}
+
+// GPUInfo contains information about detected GPU
+type GPUInfo struct {
+	Name        string
+	DeviceID    string
+	VendorID    string
+	SubsystemID string
+	RawLine     string
+}
+
+// pciIDPattern matches PCI device IDs in lspci output
+var pciIDPattern = regexp.MustCompile(`\[([0-9a-f]{4}):([0-9a-f]{4})\]`)
+
+// DetectNvidiaGPU detects NVIDIA GPU using lspci
+func DetectNvidiaGPU() (*GPUInfo, error) {
 	cmd := exec.Command("lspci", "-nn")
 	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("failed to run lspci: %w", err)
+		return nil, fmt.Errorf("lspci execution failed: %w", err)
 	}
 
 	outputStr := string(output)
-	for line := range strings.SplitSeq(outputStr, "\n") {
-		if strings.Contains(strings.ToLower(line), "nvidia") &&
-			(strings.Contains(strings.ToLower(line), "vga") ||
-				strings.Contains(strings.ToLower(line), "3d")) {
-			return line, nil
+	lines := strings.SplitSeq(outputStr, "\n")
+
+	for line := range lines {
+		if !isNvidiaGPULine(line) {
+			continue
+		}
+
+		gpu := parseGPUInfo(line)
+		if gpu != nil {
+			return gpu, nil
 		}
 	}
 
-	return "", fmt.Errorf("no NVIDIA GPU detected")
+	return nil, fmt.Errorf("no NVIDIA GPU detected")
 }
 
-// determineDriverVersion determines the appropriate driver version
-func determineDriverVersion(gpuInfo string) NvidiaDriver {
-	gpuLower := strings.ToLower(gpuInfo)
-
-	// RTX 20xx series and newer - use open driver
-	if strings.Contains(gpuLower, "rtx 2") ||
-		strings.Contains(gpuLower, "rtx 3") ||
-		strings.Contains(gpuLower, "rtx 4") ||
-		strings.Contains(gpuLower, "rtx 5") ||
-		strings.Contains(gpuLower, "gtx 16") {
-		return NvidiaOpen
-	}
-
-	// GTX 10xx series and some RTX cards
-	if strings.Contains(gpuLower, "gtx 10") ||
-		strings.Contains(gpuLower, "gtx 1050") ||
-		strings.Contains(gpuLower, "gtx 1060") ||
-		strings.Contains(gpuLower, "gtx 1070") ||
-		strings.Contains(gpuLower, "gtx 1080") ||
-		strings.Contains(gpuLower, "titan x") {
-		return NvidiaLegacy470
-	}
-
-	// GTX 9xx and older supported cards + GT series
-	if strings.Contains(gpuLower, "gtx 9") ||
-		strings.Contains(gpuLower, "gtx 8") ||
-		strings.Contains(gpuLower, "gtx 7") ||
-		strings.Contains(gpuLower, "gtx 6") ||
-		strings.Contains(gpuLower, "gt 6") ||
-		strings.Contains(gpuLower, "gt 7") ||
-		strings.Contains(gpuLower, "gt 730") ||
-		strings.Contains(gpuLower, "gt 740") ||
-		strings.Contains(gpuLower, "gt 710") ||
-		strings.Contains(gpuLower, "gt 720") ||
-		strings.Contains(gpuLower, "quadro") {
-		return NvidiaLegacy390
-	}
-
-	// Very old cards
-	if strings.Contains(gpuLower, "gtx 4") ||
-		strings.Contains(gpuLower, "gtx 5") ||
-		strings.Contains(gpuLower, "gt 4") ||
-		strings.Contains(gpuLower, "gt 5") ||
-		strings.Contains(gpuLower, "geforce 8") ||
-		strings.Contains(gpuLower, "geforce 9") {
-		return NvidiaLegacy340
-	}
-
-	// Default to open driver for newer unknown cards
-	return NvidiaOpen
+// isNvidiaGPULine checks if line contains NVIDIA GPU info
+func isNvidiaGPULine(line string) bool {
+	lower := strings.ToLower(line)
+	hasNvidia := strings.Contains(lower, "nvidia")
+	hasVGA := strings.Contains(lower, "vga") ||
+		strings.Contains(lower, "3d controller") ||
+		strings.Contains(lower, "display controller")
+	return hasNvidia && hasVGA
 }
 
-// InstallNvidia installs appropriate NVIDIA drivers
+// parseGPUInfo extracts GPU information from lspci line
+func parseGPUInfo(line string) *GPUInfo {
+	matches := pciIDPattern.FindAllStringSubmatch(line, -1)
+	if len(matches) < 1 {
+		return nil
+	}
+
+	// First match is typically [vendorID:deviceID]
+	vendorID := matches[0][1]
+	deviceID := matches[0][2]
+
+	// Extract GPU name (everything after the IDs)
+	parts := strings.SplitN(line, ":", 3)
+	name := "Unknown NVIDIA GPU"
+	if len(parts) == 3 {
+		name = strings.TrimSpace(parts[2])
+		// Remove PCI IDs from name
+		name = pciIDPattern.ReplaceAllString(name, "")
+		name = strings.TrimSpace(name)
+	}
+
+	return &GPUInfo{
+		Name:     name,
+		VendorID: vendorID,
+		DeviceID: deviceID,
+		RawLine:  line,
+	}
+}
+
+// DetermineDriver selects appropriate driver based on GPU info
+func DetermineDriver(gpu *GPUInfo) DriverVariant {
+	if gpu == nil {
+		return DriverNone
+	}
+
+	// Use device ID for precise matching when available
+	if gpu.DeviceID != "" {
+		if driver := driverByDeviceID(gpu.DeviceID); driver != DriverNone {
+			return driver
+		}
+	}
+
+	// Fallback to name-based detection
+	return driverByName(gpu.Name)
+}
+
+// driverByDeviceID determines driver by PCI device ID
+func driverByDeviceID(deviceID string) DriverVariant {
+	// Convert to uppercase for comparison
+	deviceID = strings.ToUpper(deviceID)
+
+	// Turing and later (RTX 20xx+, GTX 16xx) - Open driver
+	// Device IDs: 1E00-1FFF (Turing), 2000-2FFF (Ampere), 2500-26FF (Ada)
+	if (deviceID >= "1E00" && deviceID <= "1FFF") ||
+		(deviceID >= "2000" && deviceID <= "2FFF") ||
+		(deviceID >= "2500" && deviceID <= "26FF") {
+		return DriverOpen
+	}
+
+	// Pascal (GTX 10xx series) - 470 legacy
+	// Device IDs: 1B00-1DFF
+	if deviceID >= "1B00" && deviceID <= "1DFF" {
+		return DriverLegacy470
+	}
+
+	// Maxwell (GTX 9xx, 7xx) and older Kepler - 390 legacy
+	// Device IDs: 1000-1AFF
+	if deviceID >= "1000" && deviceID <= "1AFF" {
+		return DriverLegacy390
+	}
+
+	// Very old cards (Fermi and older) - 340 legacy
+	// Device IDs: 0000-0FFF
+	if deviceID >= "0000" && deviceID <= "0FFF" {
+		return DriverLegacy340
+	}
+
+	return DriverNone
+}
+
+// driverByName determines driver by GPU name (fallback)
+func driverByName(name string) DriverVariant {
+	lower := strings.ToLower(name)
+
+	// Modern cards - Open driver
+	modernPatterns := []string{
+		"rtx 20", "rtx 30", "rtx 40", "rtx 50",
+		"gtx 16", "rtx 2", "rtx 3", "rtx 4", "rtx 5",
+	}
+	for _, pattern := range modernPatterns {
+		if strings.Contains(lower, pattern) {
+			return DriverOpen
+		}
+	}
+
+	// Pascal generation - 470 legacy
+	pascalPatterns := []string{
+		"gtx 10", "titan x", "titan xp",
+	}
+	for _, pattern := range pascalPatterns {
+		if strings.Contains(lower, pattern) {
+			return DriverLegacy470
+		}
+	}
+
+	// Maxwell/Kepler - 390 legacy
+	maxwellPatterns := []string{
+		"gtx 9", "gtx 8", "gtx 7", "gtx 6",
+		"gt 6", "gt 7", "gt 710", "gt 720", "gt 730", "gt 740",
+		"quadro k", "quadro m",
+	}
+	for _, pattern := range maxwellPatterns {
+		if strings.Contains(lower, pattern) {
+			return DriverLegacy390
+		}
+	}
+
+	// Very old cards - 340 legacy
+	oldPatterns := []string{
+		"gtx 4", "gtx 5", "gt 4", "gt 5",
+		"geforce 8", "geforce 9", "geforce 2", "geforce 3",
+	}
+	for _, pattern := range oldPatterns {
+		if strings.Contains(lower, pattern) {
+			return DriverLegacy340
+		}
+	}
+
+	// Default for unknown newer cards
+	return DriverOpen
+}
+
+// InstallNvidia detects and installs appropriate NVIDIA drivers
 func InstallNvidia() error {
 	utils.LogInfo("Detecting NVIDIA GPU...")
 
-	gpuInfo, err := detectNvidiaGPU()
+	gpu, err := DetectNvidiaGPU()
 	if err != nil {
-		utils.LogInfo("No NVIDIA GPU detected, skipping driver installation.")
-		return nil // Continue installation without error
+		utils.LogInfo("No NVIDIA GPU detected, skipping driver installation")
+		return nil
 	}
 
-	utils.LogInfo("Detected NVIDIA GPU: %s", gpuInfo)
+	utils.LogInfo("Detected GPU: %s", gpu.Name)
+	utils.LogDebug("GPU Device ID: %s, Vendor ID: %s", gpu.DeviceID, gpu.VendorID)
 
-	driver := determineDriverVersion(gpuInfo)
+	driver := DetermineDriver(gpu)
+	if driver == DriverNone {
+		utils.LogWarn("Could not determine appropriate driver for GPU")
+		return nil
+	}
+
+	utils.LogInfo("Selected driver: %s", driver.String())
+
 	packages := driver.Packages()
+	if len(packages) == 0 {
+		utils.LogInfo("No driver packages to install")
+		return nil
+	}
 
-	utils.LogInfo("Installing NVIDIA driver: %v", driver)
-	utils.LogInfo("Packages: %v", packages)
-
+	utils.LogDebug("Installing packages: %v", packages)
 	if err := utils.Install(packages); err != nil {
-		return fmt.Errorf("failed to install nvidia packages: %w", err)
+		return fmt.Errorf("install nvidia packages: %w", err)
 	}
 
-	// Apply nvidia module in grub
-	if err := configureGrubForNvidia(); err != nil {
-		return fmt.Errorf("failed to configure GRUB for NVIDIA: %w", err)
+	// Configure GRUB
+	if err := ConfigureGrubForNvidia(); err != nil {
+		return fmt.Errorf("configure GRUB: %w", err)
 	}
 
-	// Apply initcpio modules (skip for very old 340xx driver)
-	if driver != NvidiaLegacy340 {
-		if err := configureInitcpioForNvidia(); err != nil {
-			return fmt.Errorf("failed to configure initcpio for NVIDIA: %w", err)
+	// Configure initramfs (except for very old drivers)
+	if driver.RequiresKernelModules() {
+		if err := ConfigureInitcpioForNvidia(); err != nil {
+			return fmt.Errorf("configure initcpio: %w", err)
 		}
 	}
 
-	utils.LogInfo("NVIDIA driver installation completed successfully!")
+	utils.LogInfo("NVIDIA driver installation completed successfully")
 	return nil
 }
 
-// configureGrubForNvidia configures GRUB for NVIDIA
-func configureGrubForNvidia() error {
-	grubContent, err := utils.ReadFile("/mnt/etc/default/grub")
+// ConfigureGrubForNvidia adds NVIDIA parameters to GRUB config
+func ConfigureGrubForNvidia() error {
+	const grubPath = "/mnt/etc/default/grub"
+	const nvidiaParam = "nvidia-drm.modeset=1"
+
+	content, err := utils.ReadFile(grubPath)
 	if err != nil {
-		grubContent = ""
+		return fmt.Errorf("read grub config: %w", err)
 	}
 
-	lines := strings.Split(grubContent, "\n")
-	grubConfFound := false
-
-	for i, line := range lines {
-		if strings.HasPrefix(line, "GRUB_CMDLINE_LINUX_DEFAULT=") {
-			grubConfFound = true
-			if !strings.Contains(line, "nvidia-drm.modeset=1") {
-				lines[i] = strings.Replace(line,
-					`GRUB_CMDLINE_LINUX_DEFAULT="`,
-					`GRUB_CMDLINE_LINUX_DEFAULT="nvidia-drm.modeset=1 `,
-					1)
-			}
-			break
-		}
+	// Check if already configured
+	if strings.Contains(content, nvidiaParam) {
+		utils.LogDebug("GRUB already configured for NVIDIA")
+		return nil
 	}
 
-	if !grubConfFound {
-		lines = append(lines, `GRUB_CMDLINE_LINUX_DEFAULT="nvidia-drm.modeset=1"`)
-	}
-
-	newGrubContent := strings.Join(lines, "\n")
-	return utils.WriteFile("/mnt/etc/default/grub", newGrubContent)
-}
-
-// configureInitcpioForNvidia configures initcpio for NVIDIA
-func configureInitcpioForNvidia() error {
-	initcpioContent, err := utils.ReadFile("/mnt/etc/mkinitcpio.conf")
-	if err != nil {
-		initcpioContent = ""
-	}
-
-	lines := strings.Split(initcpioContent, "\n")
-	initcpioConfFound := false
+	lines := strings.Split(content, "\n")
+	modified := false
 
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "MODULES=") && !strings.HasPrefix(trimmed, "#") {
-			initcpioConfFound = true
-			lines[i] = "MODULES=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)"
+
+		// Skip comments
+		if strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+
+		if strings.HasPrefix(trimmed, "GRUB_CMDLINE_LINUX_DEFAULT=") {
+			lines[i] = addParameterToGrubLine(line, nvidiaParam)
+			modified = true
 			break
 		}
 	}
 
-	if !initcpioConfFound {
-		lines = append(lines, "MODULES=(nvidia nvidia_modeset nvidia_uvm nvidia_drm)")
+	// Add line if not found
+	if !modified {
+		lines = append(lines, fmt.Sprintf(`GRUB_CMDLINE_LINUX_DEFAULT="%s"`, nvidiaParam))
 	}
 
-	newInitcpioContent := strings.Join(lines, "\n")
-	return utils.WriteFile("/mnt/etc/mkinitcpio.conf", newInitcpioContent)
+	newContent := strings.Join(lines, "\n")
+	if err := utils.WriteFile(grubPath, newContent); err != nil {
+		return fmt.Errorf("write grub config: %w", err)
+	}
+
+	utils.LogDebug("GRUB configured for NVIDIA")
+	return nil
+}
+
+// addParameterToGrubLine adds parameter to GRUB_CMDLINE_LINUX_DEFAULT line
+func addParameterToGrubLine(line, param string) string {
+	// Find the quoted section
+	startQuote := strings.Index(line, `"`)
+	endQuote := strings.LastIndex(line, `"`)
+
+	if startQuote == -1 || endQuote == -1 || startQuote == endQuote {
+		// Malformed line, append parameter safely
+		return fmt.Sprintf(`GRUB_CMDLINE_LINUX_DEFAULT="%s"`, param)
+	}
+
+	// Extract existing parameters
+	existing := line[startQuote+1 : endQuote]
+
+	// Add new parameter
+	if existing == "" {
+		existing = param
+	} else {
+		existing = param + " " + existing
+	}
+
+	// Reconstruct line
+	return fmt.Sprintf(`GRUB_CMDLINE_LINUX_DEFAULT="%s"`, existing)
+}
+
+// ConfigureInitcpioForNvidia adds NVIDIA modules to initramfs
+func ConfigureInitcpioForNvidia() error {
+	const initcpioPath = "/mnt/etc/mkinitcpio.conf"
+	const nvidiaModules = "nvidia nvidia_modeset nvidia_uvm nvidia_drm"
+
+	content, err := utils.ReadFile(initcpioPath)
+	if err != nil {
+		return fmt.Errorf("read mkinitcpio.conf: %w", err)
+	}
+
+	// Check if already configured
+	if strings.Contains(content, "nvidia_drm") {
+		utils.LogDebug("mkinitcpio already configured for NVIDIA")
+		return nil
+	}
+
+	lines := strings.Split(content, "\n")
+	modified := false
+
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Skip comments
+		if strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+
+		if strings.HasPrefix(trimmed, "MODULES=") {
+			lines[i] = fmt.Sprintf("MODULES=(%s)", nvidiaModules)
+			modified = true
+			break
+		}
+	}
+
+	// Add MODULES line if not found
+	if !modified {
+		// Find a good place to insert (after comments at top)
+		insertIdx := 0
+		for i, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
+				insertIdx = i
+				break
+			}
+		}
+
+		newLine := fmt.Sprintf("MODULES=(%s)", nvidiaModules)
+		lines = append(lines[:insertIdx], append([]string{newLine}, lines[insertIdx:]...)...)
+	}
+
+	newContent := strings.Join(lines, "\n")
+	if err := utils.WriteFile(initcpioPath, newContent); err != nil {
+		return fmt.Errorf("write mkinitcpio.conf: %w", err)
+	}
+
+	utils.LogDebug("mkinitcpio configured for NVIDIA")
+	return nil
 }

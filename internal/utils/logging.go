@@ -51,10 +51,11 @@ func (f *CustomFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 		levelColor = entry.Level.String()
 	}
 
-	return []byte(fmt.Sprintf("[ %s ] %s %s\n", levelColor, timestamp, entry.Message)), nil
+	return fmt.Appendf(nil, "[ %s ] %s %s\n", levelColor, timestamp, entry.Message), nil
 }
 
 // Logging functions
+
 func LogInfo(format string, args ...any) {
 	if logger != nil {
 		logger.Infof(format, args...)
@@ -83,4 +84,19 @@ func LogTrace(format string, args ...any) {
 	if logger != nil {
 		logger.Tracef(format, args...)
 	}
+}
+
+// Sprintf is a convenience wrapper around fmt.Sprintf
+func Sprintf(format string, args ...any) string {
+	return fmt.Sprintf(format, args...)
+}
+
+// NewError creates a new error with the given message
+func NewError(message string) error {
+	return fmt.Errorf("%s", message)
+}
+
+// NewErrorf creates a new formatted error
+func NewErrorf(format string, args ...any) error {
+	return fmt.Errorf(format, args...)
 }
