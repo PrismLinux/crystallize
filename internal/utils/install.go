@@ -520,12 +520,17 @@ func InstallBaseWithConfig(pkgs []string, config *ProgressConfig) error {
 	if err != nil {
 		return err
 	}
-	defer cleanupLog(logFile)
+
+	var installErr error
+	defer func() {
+		CleanupLog(logFile, true, installErr != nil)
+	}()
 
 	args := append([]string{"/mnt"}, pkgs...)
 	cmd := exec.Command("pacstrap", args...)
 
-	return executeWithProgress(cmd, "Install base packages", logFile, config, len(pkgs))
+	installErr = executeWithProgress(cmd, "Install base packages", logFile, config, len(pkgs))
+	return installErr
 }
 
 func Install(pkgs []string) error {
@@ -549,12 +554,17 @@ func InstallWithConfig(pkgs []string, config *ProgressConfig) error {
 	if err != nil {
 		return err
 	}
-	defer cleanupLog(logFile)
+
+	var installErr error
+	defer func() {
+		CleanupLog(logFile, true, installErr != nil)
+	}()
 
 	args := append([]string{"/mnt", "pacman", "-S", "--noconfirm", "--needed"}, pkgs...)
 	cmd := exec.Command("arch-chroot", args...)
 
-	return executeWithProgress(cmd, "Install packages", logFile, config, len(pkgs))
+	installErr = executeWithProgress(cmd, "Install packages", logFile, config, len(pkgs))
+	return installErr
 }
 
 func UpdateDatabases() error {
@@ -570,10 +580,15 @@ func UpdateDatabasesWithConfig(config *ProgressConfig) error {
 	if err != nil {
 		return err
 	}
-	defer cleanupLog(logFile)
+
+	var updateErr error
+	defer func() {
+		CleanupLog(logFile, true, updateErr != nil)
+	}()
 
 	cmd := exec.Command("arch-chroot", "/mnt", "pacman", "-Sy", "--noconfirm")
-	return executeWithProgress(cmd, "Update package databases", logFile, config, 0)
+	updateErr = executeWithProgress(cmd, "Update package databases", logFile, config, 0)
+	return updateErr
 }
 
 func UpgradeSystem() error {
@@ -589,10 +604,15 @@ func UpgradeSystemWithConfig(config *ProgressConfig) error {
 	if err != nil {
 		return err
 	}
-	defer cleanupLog(logFile)
+
+	var upgradeErr error
+	defer func() {
+		CleanupLog(logFile, true, upgradeErr != nil)
+	}()
 
 	cmd := exec.Command("arch-chroot", "/mnt", "pacman", "-Syu", "--noconfirm")
-	return executeWithProgress(cmd, "Upgrade system packages", logFile, config, 0)
+	upgradeErr = executeWithProgress(cmd, "Upgrade system packages", logFile, config, 0)
+	return upgradeErr
 }
 
 func CheckInstalled(pkgs []string) ([]string, error) {
@@ -686,13 +706,6 @@ func createTempLog(pattern string) (*os.File, error) {
 		}
 	}
 	return logFile, nil
-}
-
-func cleanupLog(logFile *os.File) {
-	if logFile != nil {
-		logFile.Close()
-		os.Remove(logFile.Name())
-	}
 }
 
 func executeWithProgress(cmd *exec.Cmd, description string, logFile *os.File, config *ProgressConfig, packageCount int) error {

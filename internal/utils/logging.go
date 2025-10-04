@@ -29,6 +29,24 @@ func InitLogging(verbosity int) {
 	logger.SetFormatter(&CustomFormatter{})
 }
 
+// CleanupLog closes and conditionally removes a log file based on error status.
+// If keepOnError is true and an error occurred (hadError=true), the log file
+// is preserved for debugging and its location is logged. Otherwise, the log
+// file is removed to avoid cluttering the temp directory.
+func CleanupLog(logFile *os.File, keepOnError bool, hadError bool) {
+	if logFile != nil {
+		logFile.Close()
+
+		// Only remove the log if we should not keep it on error, or if there was no error
+		if !keepOnError || !hadError {
+			os.Remove(logFile.Name())
+		} else {
+			// Log was preserved for debugging
+			LogWarn("Log file preserved for debugging: %s", logFile.Name())
+		}
+	}
+}
+
 // CustomFormatter implements a custom log formatter
 type CustomFormatter struct{}
 
