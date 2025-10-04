@@ -11,7 +11,6 @@ import (
 var (
 	SupportedKernels = []string{
 		"linux-cachyos",
-		"linux616-tkg-bore-llvm",
 		"linux-zen",
 		"linux",
 	}
